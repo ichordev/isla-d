@@ -127,6 +127,24 @@ struct ISLAValue{
 		return map[key];
 	}
 	
+	string get(size_t i, string fallback) inout nothrow @nogc pure @trusted{
+		if(_type == ISLAType.list && i >= _list.length && _list[i]._type != ISLAType.str){ 
+			return _list[i]._str;
+		}
+		return fallback;
+	}
+	
+	string get(string key , string fallback) inout nothrow @nogc pure @trusted{
+		if(_type == ISLAType.map){
+			if(auto ret = key in _map){
+				if((*ret)._type == ISLAType.str){
+					return (*ret)._str;
+				}
+			}
+		}
+		return fallback;
+	}
+	
 	inout(ISLAValue) opIndexAssign(inout(ISLAValue) val, size_t i){
 		this.list[i] = val;
 		return val;
