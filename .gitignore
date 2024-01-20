@@ -1,0 +1,9 @@
+.dub
+lib/
+docs/
+docs.json
+__dummy.html
+dscanner.ini
+*.kate-swp
+.directory
+.DS_Store
