@@ -128,8 +128,15 @@ struct ISLAValue{
 	}
 	
 	string get(size_t i, string fallback) inout nothrow @nogc pure @trusted{
-		if(_type == ISLAType.list && i >= _list.length && _list[i]._type != ISLAType.str){ 
+		if(_type == ISLAType.list && i < _list.length && _list[i]._type == ISLAType.str){ 
 			return _list[i]._str;
+		}
+		return fallback;
+	}
+	
+	T get( alias parse=(a)=>a, T)(size_t i, T fallback) inout{
+		if(_type == ISLAType.list && i < _list.length && _list[i]._type == ISLAType.str){ 
+			return parse(_list[i]._str);
 		}
 		return fallback;
 	}
@@ -143,6 +150,36 @@ struct ISLAValue{
 			}
 		}
 		return fallback;
+	}
+	
+	T get( alias parse=(a)=>a, T)(string key, T fallback) inout{
+		if(_type == ISLAType.map){
+			if(auto ret = key in _map){
+				if((*ret)._type == ISLAType.str){
+					return parse((*ret)._str);
+				}
+			}
+		}
+		return fallback;
+	}
+	
+	unittest{
+		ISLAValue val;
+		val = ISLAValue(["50", "-72", "4", "509"]);
+		
+		assert(val.get(0, "9")  == "50");
+		assert(val.get(4, "12") == "12");
+		
+		assert(val.get!(to!int)(0,  9)   == 50);
+		assert(val.get!(to!int)(4, 12)   == 12);
+		
+		val = ISLAValue(["two": "2", "four": "4", "six": "6"]);
+		
+		assert(val.get("two",   "7") == "2");
+		assert(val.get("eight", "8") == "8");
+		
+		assert(val.get!(to!int)("two",   7) == 2);
+		assert(val.get!(to!int)("eight", 8) == 8);
 	}
 	
 	inout(ISLAValue) opIndexAssign(inout(ISLAValue) val, size_t i){
