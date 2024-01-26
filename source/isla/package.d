@@ -72,42 +72,42 @@ struct ISLAValue{
 	}
 	
 	///Return a string if the `ISLAValue`'s `type` is `str`, otherwise throw an `ISLAException`.
-	@property str() pure @trusted inout{
+	@property str() inout pure @trusted{
 		if(_type != ISLAType.str) throw new ISLAException("Type is `"~_type.toString()~"`, not `str`");
 		return _str;
 	}
 	///Return a string if the `ISLAValue`'s `type` is `str`, otherwise `null`.
-	@property strNothrow() nothrow @nogc pure @trusted inout => _type == ISLAType.str ? _str : null;
+	@property strNothrow() inout nothrow @nogc pure @trusted => _type == ISLAType.str ? _str : null;
 	
 	///Return a list if the `ISLAValue`'s `type` is `list`, otherwise throw an `ISLAException`.
-	@property list() pure @trusted inout{
+	@property list() inout pure @trusted{
 		if(_type != ISLAType.list) throw new ISLAException("Type is `"~_type.toString()~"`, not `list`");
 		return _list;
 	}
 	///Return a list if the `ISLAValue`'s `type` is `list`, otherwise `null`.
-	@property listNothrow() nothrow @nogc pure @trusted inout => _type == ISLAType.list ? _list : null;
+	@property listNothrow() inout nothrow @nogc pure @trusted => _type == ISLAType.list ? _list : null;
 	
 	///Return a map if the `ISLAValue`'s `type` is `map`, otherwise throw an `ISLAException`.
-	@property map() pure @trusted inout{
+	@property map() inout pure @trusted{
 		if(_type != ISLAType.map) throw new ISLAException("Type is "~_type.toString()~"`, not `map`");
 		return _map;
 	}
 	///Return a map if the `ISLAValue`'s `type` is `map`, otherwise `null`.
-	@property mapNothrow() nothrow @nogc pure @trusted inout => _type == ISLAType.map ? _map : null;
+	@property mapNothrow() inout nothrow @nogc pure @trusted => _type == ISLAType.map ? _map : null;
 	
-	bool opEquals(inout string rhs) nothrow @nogc pure @trusted inout{
+	bool opEquals(inout string rhs) inout nothrow @nogc pure @trusted{
 		if(_type != ISLAType.str) return false;
 		return _str == rhs;
 	}
-	bool opEquals(inout ISLAValue[] rhs) nothrow @nogc pure @trusted inout{
+	bool opEquals(inout ISLAValue[] rhs) inout nothrow @nogc pure @trusted{
 		if(_type != ISLAType.list) return false;
 		return _list == rhs;
 	}
-	bool opEquals(inout ISLAValue[string] rhs) nothrow @nogc pure @trusted inout{
+	bool opEquals(inout ISLAValue[string] rhs) inout nothrow @nogc pure @trusted{
 		if(_type != ISLAType.map) return false;
 		return _map == rhs;
 	}
-	bool opEquals(inout ISLAValue rhs) nothrow @nogc pure @trusted inout{
+	bool opEquals(inout ISLAValue rhs) inout nothrow @nogc pure @trusted{
 		final switch(_type){
 			case ISLAType.str:  return _str  == rhs;
 			case ISLAType.list: return _list == rhs;
@@ -134,14 +134,14 @@ struct ISLAValue{
 		return fallback;
 	}
 	
-	T get( alias parse=(a)=>a, T)(size_t i, T fallback) inout{
+	T get(alias parse=(a) => a, T)(size_t i, T fallback) inout{
 		if(_type == ISLAType.list && i < _list.length && _list[i]._type == ISLAType.str){ 
 			return parse(_list[i]._str);
 		}
 		return fallback;
 	}
 	
-	string get(string key , string fallback) inout nothrow @nogc pure @trusted{
+	string get(string key, string fallback) inout nothrow @nogc pure @trusted{
 		if(_type == ISLAType.map){
 			if(auto ret = key in _map){
 				if((*ret)._type == ISLAType.str){
@@ -152,7 +152,7 @@ struct ISLAValue{
 		return fallback;
 	}
 	
-	T get( alias parse=(a)=>a, T)(string key, T fallback) inout{
+	T get(alias parse=(a) => a, T)(string key, T fallback) inout{
 		if(_type == ISLAType.map){
 			if(auto ret = key in _map){
 				if((*ret)._type == ISLAType.str){
@@ -194,7 +194,6 @@ struct ISLAValue{
 	
 	inout inout(ISLAValue)* opBinaryRight(string op: "in")(string key) @safe pure => key in map;
 	
-	
 	int opApply(scope int delegate(size_t, ref ISLAValue) dg){
 		int result;
 		foreach(index, ref value; listNothrow){
@@ -213,7 +212,7 @@ struct ISLAValue{
 		return result;
 	}
 	
-	string toString() pure nothrow @trusted{
+	string toString() inout pure nothrow @trusted{
 		final switch(_type){
 			case ISLAType.str:
 				return _str;
