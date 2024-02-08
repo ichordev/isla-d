@@ -19,18 +19,19 @@ ISLA1
 
 Lines that match any of the following cases will be skipped by the parser:
 - Empty lines.
-- Lines with a number of horizontal tabulator codepoints (U+0009) corresponding to the current *nesting level*.
+- Lines with a number of horizontal tabulator codepoints (U+0009) less than or equal to the current *nesting level*.
 - Lines starting with a number of horizontal tabulator codepoints (U+0009) less than or equal to the current *nesting level*, followed by a semicolon and an optional arbitrary series of non-line-breaking codepoints. (i.e. a comment)
 
 **Example:**
 ```isla
 ISLA1
 -:
-	-value
+	-:
+		-value
 
-	
+		
 	;This is a comment!
-
+	
 ;Another comment :)
 ```
 

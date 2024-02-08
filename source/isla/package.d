@@ -397,14 +397,22 @@ private struct DecodeImpl(R){
 	
 	pure @safe:
 	bool startLine(ref string line, size_t level, out size_t newLevel){
-		if(line.length == 0) return false;
+		if(line.length == 0){
+			newLevel = level;
+			return false;
+		 }
 		 
 		foreach(ch; line[0..($ < level ? $ : level)]){
 			if(ch == '\t'){
 				newLevel++;
 			}else if(ch == ';'){
+				newLevel = level;
 				return false;
 			}else break;
+		}
+		if(level > line.length){
+			newLevel = level;
+			return false;
 		}
 		line = line[level..$];
 		if(line.length == 0) return false;
@@ -568,6 +576,19 @@ isla".splitLines());
 	assert(val["Quote"] == "He engraved on it the words:\n\"And this, too, shall pass away.\n\"");
 	
 	val = isla.decode(header ~ q"isla
+
+ISLA1
+-:
+	-:
+		-value
+
+		
+	;This is a comment!
+	
+;Another comment :)
+isla".splitLines());
+	
+	val = isla.decode(header ~ q"isla
 health=100
 items:
 	-apple
@@ -575,6 +596,8 @@ items:
 	-key
 translations:
 	en-UK:
+		;United Kingdom English
+	
 		item.apple.name=Apple
 		item.apple.description="
 A shiny, ripe, red apple that
@@ -595,6 +618,8 @@ grid:
 		-4
 		-5
 		-6
+		
+;seven eight nine...
 	-:
 		-7
 		-8
