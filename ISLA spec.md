@@ -25,11 +25,13 @@ Lines that match any of the following cases will be skipped by the parser:
 **Example:**
 ```isla
 ISLA1
+-:
+	-value
 
 	
 	;This is a comment!
-     
-   ;Another comment :)
+
+;Another comment :)
 ```
 
 The number of horizontal tabulators (U+0009) at the start of a line indicates the current *nesting level*.

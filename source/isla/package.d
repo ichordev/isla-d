@@ -420,7 +420,6 @@ private struct DecodeImpl(R){
 			auto line = lines.front;
 			
 			if(!startLine(line, level, newLevel)){
-				import std.stdio;
 				if(newLevel < level) throw new ISLAException("Scope immediately ended on line "~lineNum.to!string()); //TODO: maybe return null??????
 				else continue;
 			}
