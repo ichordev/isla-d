@@ -4,6 +4,10 @@
 +     (See accompanying file LICENSE_1_0.txt or copy at
 +           http://www.boost.org/LICENSE_1_0.txt)
 +/
-module isla;
+module isla.common;
 
-public import isla.bin, isla.common, isla.txt;
+class ISLAException: Exception{
+	 this(string msg, string file=__FILE__, size_t line=__LINE__) nothrow pure @safe{
+		super(msg, file, line);
+	}
+}
