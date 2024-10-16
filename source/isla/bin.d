@@ -128,18 +128,18 @@ struct ISLABinValue{
 		}
 	}
 	
-	///Idexes a list. Throws `ISLAException` if the `ISLABinValue` is not a list.
+	///Indexes a list. Throws `ISLAException` if the `ISLABinValue` is not a list.
 	ref inout(ISLABinValue) opIndex(size_t i) inout pure @safe{
 		auto list = this.list;
 		if(i < list.length) return list[i];
-		throw new ISLAException("Out of bounds list index");
+		throw new ISLAListIndexException(i, list.length);
 	}
 	
 	///Looks up a key in a map. Throws `ISLAException` if the `ISLABinValue` is not a map.
 	ref inout(ISLABinValue) opIndex(scope const(void)[] key) inout pure @safe{
 		auto map = this.map;
 		if(auto val = key in map) return *val;
-		throw new ISLAException("Key not found: " ~ key.toHexString());
+		throw new ISLAMapKeyException(key.toHexString());
 	}
 	
 	inout(ISLABinValue) get(scope size_t i, return scope inout(ISLABinValue) fallback) inout nothrow @nogc pure @trusted =>

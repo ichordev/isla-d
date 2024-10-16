@@ -1,6 +1,6 @@
 {
 	"name": "isla",
-	"description": "A library for parsing the ISLA serialisation format.",
+	"description": "A simple & usable library for the ISLA serialisation formats.",
 	"authors": ["Aya Partridge"],
 	"license": "BSL-1.0",
 	

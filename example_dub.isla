@@ -1,0 +1,79 @@
+ISLA1
+;This is a comment! :)
+
+;The repository name.
+name=example
+;Multi-line string in a map:
+description="
+A BetterC & nothrow @nogc replacement for Phobos.
+"
+
+;The primary authors of this library.
+authors:
+	-John Doe
+	-Kim Dhae
+
+;Copyright information and license type
+copyright=Copyright © 2025
+license=proprietary
+
+;Which directory to export the library to.
+targetPath=bin
+;Which directory to run the library from.
+workingDirectory=bin
+
+configurations:
+	;This is a list of maps.
+	-:
+		;The name of the configuration.
+		name=testing
+		
+		;Extra build options to use for this configuration.
+		buildOptions:
+			-betterC
+		
+		;What type of binary to build for this configuration.
+		targetType=executable
+	-:
+		name=unittest
+		
+		buildOptions:
+			-betterC
+		
+		targetType=executable
+	-:
+		name=unittestGC
+		
+		dflags:
+			--checkaction=context
+		
+		targetType=executable
+	-:
+		name=release
+		
+		buildOptions:
+			-betterC
+		
+		targetType=library
+		
+		;Which source files to skip building for this configuration
+		excludedSourceFiles:
+			-test.d
+	-:
+		name=releaseGC
+		targetType=library
+		
+		excludedSourceFiles:
+			-test.d
+
+;Flags for the compiler.
+dflags:
+	;First hyphen is ignored, since this is a list.
+	--test
+	--debug
+	;Multi-line string in a list:
+	-"
+-preview=all
+"
+
+;End of the file!

@@ -105,18 +105,18 @@ struct ISLAValue{
 		}
 	}
 	
-	///Idexes a list. Throws `ISLAException` if the `ISLAValue` is not a list.
+	///Indexes a list. Throws `ISLAException` if the `ISLAValue` is not a list.
 	ref inout(ISLAValue) opIndex(size_t i) inout pure @safe{
 		auto list = this.list;
-		if(i >= list.length) throw new ISLAException("Out of bounds list index");
-		return list[i];
+		if(i < list.length) return list[i];
+		throw new ISLAListIndexException(i, list.length);
 	}
 	
 	///Looks up a key in a map. Throws `ISLAException` if the `ISLAValue` is not a map.
 	ref inout(ISLAValue) opIndex(scope string key) inout pure @safe{
 		auto map = this.map;
-		if(key !in map) throw new ISLAException("Key not found: " ~ key);
-		return map[key];
+		if(auto val = key in map) return *val;
+		throw new ISLAMapKeyException(key);
 	}
 	
 	inout(ISLAValue) get(scope size_t i, return scope inout(ISLAValue) fallback) inout nothrow @nogc pure @trusted =>
@@ -650,21 +650,21 @@ if(isInputRange!(R, string)){
 }
 unittest{
 	ISLAValue val;
-	val = isla.txt.decode(isla.txt.header ~ q"isla
+	val = isla.txt.decode((isla.txt.header ~ '\n' ~ q"isla
 -;)
 -:3
 -\:
-isla".splitLines());
+isla").lineSplitter());
 	assert(val[0] == ";)");
 	assert(val[1] == ":3");
 	assert(val[2] == ":");
 	
-	val = isla.txt.decode(isla.txt.header ~ q"isla
+	val = isla.txt.decode((isla.txt.header ~ '\n' ~ q"isla
 \-3=Minus three
 e\=mc^2=Mass–energy equivalence
 ¯\_(ツ)_/¯=a shrug
 \:)=a smiley
-isla".splitLines());
+isla").splitLines());
 	assert("-3" in val);
 	assert("e=mc^2" in val);
 	assert(`¯\_(ツ)_/¯` in val);
@@ -672,16 +672,16 @@ isla".splitLines());
 	assert(":(" !in val);
 	assert(null !in val);
 	
-	val = isla.txt.decode(isla.txt.header ~ q"isla
+	val = isla.txt.decode((isla.txt.header ~ '\n' ~ q"isla
 Quote="
 He engraved on it the words:
 "And this, too, shall pass away.
 \"
 "
-isla".splitLines());
+isla").splitLines());
 	assert(val["Quote"] == "He engraved on it the words:\n\"And this, too, shall pass away.\n\"");
 	
-	val = isla.txt.decode(isla.txt.header ~ q"isla
+	val = isla.txt.decode((isla.txt.header ~ '\n' ~ q"isla
 -:
 	-:
 		-value
@@ -690,9 +690,9 @@ isla".splitLines());
 	;This is a comment!
 	
 ;Another comment :)
-isla".splitLines());
+isla").splitLines());
 	
-	val = isla.txt.decode(isla.txt.header ~ q"isla
+	val = isla.txt.decode((isla.txt.header ~ '\n' ~ q"isla
 health=100
 items:
 	-apple
@@ -731,7 +731,7 @@ grid:
 \-5 - 3=negative five minus three
 \==equals
 \:)=smiley
-isla".splitLines());
+isla").lineSplitter());
 	assert(val["health"] == ISLAValue("100"));
 	assert(val["health"] == "100");
 	assert(val["items"][1] == "apple");
