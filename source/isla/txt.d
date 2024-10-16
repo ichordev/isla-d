@@ -6,7 +6,7 @@
 +/
 module isla.txt;
 
-import isla.common: ISLAException;
+import isla.common;
 
 import std.range.primitives, std.conv, std.string, std.uni;
 
@@ -37,30 +37,30 @@ struct ISLAValue{
 	private ISLAType _type = ISLAType.str;
 	@property type() inout nothrow @nogc pure @safe => _type;
 	
-	this(string val) nothrow @nogc pure @safe{
-		_str = val;
+	this(string str) nothrow @nogc pure @safe{
+		_str = str;
 		_type = ISLAType.str;
 	}
-	this(ISLAValue[] val) nothrow @nogc pure @safe{
-		_list = val;
+	this(ISLAValue[] list) nothrow @nogc pure @safe{
+		_list = list;
 		_type = ISLAType.list;
 	}
-	this(ISLAValue[string] val) nothrow @nogc pure @safe{
-		_map = val;
+	this(ISLAValue[string] map) nothrow @nogc pure @safe{
+		_map = map;
 		_type = ISLAType.map;
 	}
 	
-	this(string[] vals) nothrow pure @safe{
-		auto list = new ISLAValue[](vals.length);
-		foreach(i, val; vals){
+	this(string[] strList) nothrow pure @safe{
+		auto list = new ISLAValue[](strList.length);
+		foreach(i, val; strList){
 			list[i] = ISLAValue(val);
 		}
 		_list = list;
 		_type = ISLAType.list;
 	}
-	this(string[string] vals) pure @safe{
+	this(string[string] strMap) pure @safe{
 		ISLAValue[string] map;
-		foreach(key, val; vals){
+		foreach(key, val; strMap){
 			map[key] = ISLAValue(val);
 		}
 		_map = map;
@@ -69,40 +69,34 @@ struct ISLAValue{
 	
 	///Return a string if the `ISLAValue`'s `type` is `str`, otherwise throw an `ISLAException`.
 	@property str() inout pure @trusted{
-		if(_type != ISLAType.str) throw new ISLAException("Type is `"~_type.toString()~"`, not `str`");
-		return _str;
+		if(_type == ISLAType.str) return _str;
+		throw new ISLAException("Type is `"~_type.toString()~"`, not `str`");
 	}
 	///Return a string if the `ISLAValue`'s `type` is `str`, otherwise `null`.
 	@property strNothrow() inout nothrow @nogc pure @trusted => _type == ISLAType.str ? _str : null;
 	
 	///Return a list if the `ISLAValue`'s `type` is `list`, otherwise throw an `ISLAException`.
 	@property list() inout pure @trusted{
-		if(_type != ISLAType.list) throw new ISLAException("Type is `"~_type.toString()~"`, not `list`");
-		return _list;
+		if(_type == ISLAType.list) return _list;
+		throw new ISLAException("Type is `"~_type.toString()~"`, not `list`");
 	}
 	///Return a list if the `ISLAValue`'s `type` is `list`, otherwise `null`.
 	@property listNothrow() inout nothrow @nogc pure @trusted => _type == ISLAType.list ? _list : null;
 	
 	///Return a map if the `ISLAValue`'s `type` is `map`, otherwise throw an `ISLAException`.
 	@property map() inout pure @trusted{
-		if(_type != ISLAType.map) throw new ISLAException("Type is "~_type.toString()~"`, not `map`");
-		return _map;
+		if(_type == ISLAType.map) return _map;
+		throw new ISLAException("Type is `"~_type.toString()~"`, not `map`");
 	}
 	///Return a map if the `ISLAValue`'s `type` is `map`, otherwise `null`.
 	@property mapNothrow() inout nothrow @nogc pure @trusted => _type == ISLAType.map ? _map : null;
 	
-	bool opEquals(scope inout string rhs) inout nothrow @nogc pure @trusted{
-		if(_type != ISLAType.str) return false;
-		return _str == rhs;
-	}
-	bool opEquals(scope inout ISLAValue[] rhs) inout nothrow @nogc pure @trusted{
-		if(_type != ISLAType.list) return false;
-		return _list == rhs;
-	}
-	bool opEquals(scope inout ISLAValue[string] rhs) inout nothrow @nogc pure @trusted{
-		if(_type != ISLAType.map) return false;
-		return _map == rhs;
-	}
+	bool opEquals(scope inout string rhs) inout nothrow @nogc pure @trusted =>
+		_type == ISLAType.str  && _str  == rhs;
+	bool opEquals(scope inout ISLAValue[] rhs) inout nothrow @nogc pure @trusted =>
+		_type == ISLAType.list && _list == rhs;
+	bool opEquals(scope inout ISLAValue[string] rhs) inout nothrow @nogc pure @trusted =>
+		_type == ISLAType.map  && _map  == rhs;
 	bool opEquals(inout ISLAValue rhs) inout nothrow @nogc pure @trusted{
 		final switch(_type){
 			case ISLAType.str:  return _str  == rhs;
@@ -111,12 +105,14 @@ struct ISLAValue{
 		}
 	}
 	
+	///Idexes a list. Throws `ISLAException` if the `ISLAValue` is not a list.
 	ref inout(ISLAValue) opIndex(size_t i) inout pure @safe{
 		auto list = this.list;
 		if(i >= list.length) throw new ISLAException("Out of bounds list index");
 		return list[i];
 	}
 	
+	///Looks up a key in a map. Throws `ISLAException` if the `ISLAValue` is not a map.
 	ref inout(ISLAValue) opIndex(scope string key) inout pure @safe{
 		auto map = this.map;
 		if(key !in map) throw new ISLAException("Key not found: " ~ key);
@@ -365,10 +361,17 @@ struct ISLAValue{
 					prevLine = i+1;
 				}
 			}
+			string line = _str[prevLine..$];
+			if(line == `"`){
+				lines  ~= `\"`;
+			}else{
+				lines ~= line;
+			}
 			lines ~= `"`;
 		}
 	}
 	
+	///Convert this object and its children into a valid ISLA text file
 	string encode() pure @safe inout{
 		string[] lines;
 		final switch(_type){
@@ -390,6 +393,7 @@ struct ISLAValue{
 	}
 	
 	unittest{
+		import std.algorithm.searching;
 		string val;
 		val = ISLAValue([
 			"health": ISLAValue("100"),
@@ -428,7 +432,66 @@ struct ISLAValue{
 			"-5 - 3": ISLAValue("negative five minus three"),
 			"=": ISLAValue("equals"),
 			":)": ISLAValue("smiley"),
-		]).encode();
+		]).encode() ~ '\n';
+		assert(val.startsWith(isla.txt.header ~ '\n'));
+		assert(val.canFind(q"isla
+health=100
+isla"));
+		assert(val.canFind(q"isla
+items:
+	-apple
+	-apple
+	-key
+isla"));
+		assert(val.canFind(q"isla
+translations:
+	en-UK:
+isla"));
+		assert(val.canFind(q"isla
+		item.apple.name=Apple
+isla"));
+		assert(val.canFind(q"isla
+		item.apple.description="
+A shiny, ripe, red apple that
+fell from a nearby tree.
+It looks delicious!
+"
+isla"));
+		assert(val.canFind(q"isla
+		item.key.name=Key
+isla"));
+		assert(val.canFind(q"isla
+		item.key.description="
+A rusty old-school golden key.
+You don't know what door it unlocks.
+"
+isla"));
+		assert(val.canFind(q"isla
+grid:
+	-:
+		-1
+		-2
+		-3
+	-:
+		-4
+		-5
+		-6
+	-:
+		-7
+		-8
+		-9
+		-\:
+		-\"
+isla"));
+		assert(val.canFind(q"isla
+\-5 - 3=negative five minus three
+isla"));
+		assert(val.canFind(q"isla
+\==equals
+isla"));
+		assert(val.canFind(q"isla
+\:)=smiley
+isla"));
 	}
 }
 
@@ -576,18 +639,18 @@ private struct DecodeImpl(R){
 }
 
 /**
-Decodes a series of lines representing data in the ISLA format.
+Decodes a series of lines representing data in the ISLA text format.
 
 Params:
 	lines = A range of `string`s.
 */
 ISLAValue decode(R)(R lines) pure @safe
-if(isInputRange!R && is(typeof(lines.front): string)){
+if(isInputRange!(R, string)){
 	return DecodeImpl!R(lines).decode();
 }
 unittest{
 	ISLAValue val;
-	val = isla.txt.decode(header ~ q"isla
+	val = isla.txt.decode(isla.txt.header ~ q"isla
 -;)
 -:3
 -\:
@@ -596,7 +659,7 @@ isla".splitLines());
 	assert(val[1] == ":3");
 	assert(val[2] == ":");
 	
-	val = isla.txt.decode(header ~ q"isla
+	val = isla.txt.decode(isla.txt.header ~ q"isla
 \-3=Minus three
 e\=mc^2=Mass–energy equivalence
 ¯\_(ツ)_/¯=a shrug
@@ -606,8 +669,10 @@ isla".splitLines());
 	assert("e=mc^2" in val);
 	assert(`¯\_(ツ)_/¯` in val);
 	assert(":)" in val);
+	assert(":(" !in val);
+	assert(null !in val);
 	
-	val = isla.txt.decode(header ~ q"isla
+	val = isla.txt.decode(isla.txt.header ~ q"isla
 Quote="
 He engraved on it the words:
 "And this, too, shall pass away.
@@ -616,7 +681,7 @@ He engraved on it the words:
 isla".splitLines());
 	assert(val["Quote"] == "He engraved on it the words:\n\"And this, too, shall pass away.\n\"");
 	
-	val = isla.txt.decode(header ~ q"isla
+	val = isla.txt.decode(isla.txt.header ~ q"isla
 -:
 	-:
 		-value
@@ -627,7 +692,7 @@ isla".splitLines());
 ;Another comment :)
 isla".splitLines());
 	
-	val = isla.txt.decode(header ~ q"isla
+	val = isla.txt.decode(isla.txt.header ~ q"isla
 health=100
 items:
 	-apple
@@ -663,9 +728,17 @@ grid:
 		-7
 		-8
 		-9
+\-5 - 3=negative five minus three
+\==equals
+\:)=smiley
 isla".splitLines());
 	assert(val["health"] == ISLAValue("100"));
 	assert(val["health"] == "100");
+	assert(val["items"][1] == "apple");
 	assert(val["translations"]["en-UK"]["item.apple.name"] == "Apple");
+	assert(val["translations"]["en-UK"]["item.key.description"] == "A rusty old-school golden key.\nYou don't know what door it unlocks.");
 	assert(val["grid"][1][1] == "5");
+	assert(val["-5 - 3"] == "negative five minus three");
+	assert(val["="] == "equals");
+	assert(val[":)"] == "smiley");
 }

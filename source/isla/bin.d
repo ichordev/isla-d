@@ -6,9 +6,9 @@
 +/
 module isla.bin;
 
-import isla.common: ISLAException;
+import isla.common;
 
-import std.array, std.bitmanip, std.range.primitives, std.conv;
+import std.bitmanip, std.conv, std.exception, std.range.primitives;
 
 ///Indicates which type is stored in an ISLABinValue
 enum ISLABinType{
@@ -18,12 +18,10 @@ enum ISLABinType{
 }
 
 enum headerVersion = 1;
-enum header = cast(immutable(ubyte)[])"ISLAb" ~ [
-	cast(ubyte)(headerVersion >> 24),
-	cast(ubyte)(headerVersion >> 16),
-	cast(ubyte)(headerVersion >>  8),
-	cast(ubyte)(headerVersion >>  0),
-];
+enum header = cast(immutable(ubyte)[])"ISLAb" ~
+	cast(ubyte)(headerVersion >> 16) ~
+	cast(ubyte)(headerVersion >>  8) ~
+	cast(ubyte)(headerVersion >>  0);
 
 string toString(ISLABinType type) nothrow pure @safe{
 	final switch(type){
@@ -36,10 +34,12 @@ string toString(ISLABinType type) nothrow pure @safe{
 string toHexString(const(void)[] bin) nothrow pure @safe{
 	auto ubyteArr = cast(const(ubyte)[])bin;
 	if(ubyteArr.length > 0){
+		import std.array, std.string;
 		string ret;
-		foreach(b; ubyteArr){
-			ret ~= b.toChars!(16, char, LetterCase.upper)().array;
+		foreach(b; ubyteArr[0..$-1]){
+			ret ~= b.toChars!(16, char, LetterCase.upper)().array.rightJustify(2, '0') ~ ' ';
 		}
+		ret ~= ubyteArr[$-1].toChars!(16, char, LetterCase.upper)().array.rightJustify(2, '0');
 		return ret;
 	}else{
 		return "null";
@@ -47,6 +47,11 @@ string toHexString(const(void)[] bin) nothrow pure @safe{
 }
 
 struct ISLABinValue{
+	enum lengthBits = 28;
+	enum typeBits   =  4;
+	enum maxTypes   = (1U<<  typeBits)-1;
+	enum maxLength  = (1U<<lengthBits)-1;
+	
 	private union{
 		immutable(void)[] _bin = null;
 		ISLABinValue[] _list;
@@ -55,30 +60,30 @@ struct ISLABinValue{
 	private ISLABinType _type = ISLABinType.bin;
 	@property type() inout nothrow @nogc pure @safe => _type;
 	
-	this(immutable(void)[] val) nothrow @nogc pure @safe{
-		_bin = val;
+	this(immutable(void)[] bin) nothrow @nogc pure @safe{
+		_bin = bin;
 		_type = ISLABinType.bin;
 	}
-	this(ISLABinValue[] val) nothrow @nogc pure @safe{
-		_list = val;
+	this(ISLABinValue[] list) nothrow @nogc pure @safe{
+		_list = list;
 		_type = ISLABinType.list;
 	}
-	this(ISLABinValue[immutable(void)[]] val) nothrow @nogc pure @safe{
-		_map = val;
+	this(ISLABinValue[immutable(void)[]] map) nothrow @nogc pure @safe{
+		_map = map;
 		_type = ISLABinType.map;
 	}
 	
-	this(immutable(void)[][] vals) nothrow pure @safe{
-		auto list = new ISLABinValue[](vals.length);
-		foreach(i, val; vals){
+	this(immutable(void)[][] binList) nothrow pure @safe{
+		auto list = new ISLABinValue[](binList.length);
+		foreach(i, val; binList){
 			list[i] = ISLABinValue(val);
 		}
 		_list = list;
 		_type = ISLABinType.list;
 	}
-	this(immutable(void)[][immutable(void)[]] vals) pure @safe{
+	this(immutable(void)[][immutable(void)[]] binMap) pure @safe{
 		ISLABinValue[immutable(void)[]] map;
-		foreach(key, val; vals){
+		foreach(key, val; binMap){
 			map[key] = ISLABinValue(val);
 		}
 		_map = map;
@@ -87,40 +92,34 @@ struct ISLABinValue{
 	
 	///Return a void array if the `ISLABinValue`'s `type` is `bin`, otherwise throw an `ISLAException`.
 	@property bin() inout pure @trusted{
-		if(_type != ISLABinType.bin) throw new ISLAException("Type is `"~_type.toString()~"`, not `bin`");
-		return _bin;
+		if(_type == ISLABinType.bin) return _bin;
+		throw new ISLAException("Type is `"~_type.toString()~"`, not `bin`");
 	}
 	///Return a void array if the `ISLABinValue`'s `type` is `bin`, otherwise `null`.
 	@property binNothrow() inout nothrow @nogc pure @trusted => _type == ISLABinType.bin ? _bin : null;
 	
 	///Return a list if the `ISLABinValue`'s `type` is `list`, otherwise throw an `ISLAException`.
 	@property list() inout pure @trusted{
-		if(_type != ISLABinType.list) throw new ISLAException("Type is `"~_type.toString()~"`, not `list`");
-		return _list;
+		if(_type == ISLABinType.list) return _list;
+		throw new ISLAException("Type is `"~_type.toString()~"`, not `list`");
 	}
 	///Return a list if the `ISLABinValue`'s `type` is `list`, otherwise `null`.
 	@property listNothrow() inout nothrow @nogc pure @trusted => _type == ISLABinType.list ? _list : null;
 	
 	///Return a map if the `ISLABinValue`'s `type` is `map`, otherwise throw an `ISLAException`.
 	@property map() inout pure @trusted{
-		if(_type != ISLABinType.map) throw new ISLAException("Type is "~_type.toString()~"`, not `map`");
-		return _map;
+		if(_type == ISLABinType.map) return _map;
+		throw new ISLAException("Type is `"~_type.toString()~"`, not `map`");
 	}
 	///Return a map if the `ISLABinValue`'s `type` is `map`, otherwise `null`.
 	@property mapNothrow() inout nothrow @nogc pure @trusted => _type == ISLABinType.map ? _map : null;
 	
-	bool opEquals(scope const(void)[] rhs) const nothrow @nogc pure @trusted{
-		if(_type != ISLABinType.bin) return false;
-		return _bin == rhs;
-	}
-	bool opEquals(scope const(ISLABinValue)[] rhs) const nothrow @nogc pure @trusted{
-		if(_type != ISLABinType.list) return false;
-		return _list == rhs;
-	}
-	bool opEquals(scope const ISLABinValue[immutable(void)[]] rhs) const nothrow @nogc pure @trusted{
-		if(_type != ISLABinType.map) return false;
-		return _map == rhs;
-	}
+	bool opEquals(scope const(void)[] rhs) const nothrow @nogc pure @trusted =>
+		_type == ISLABinType.bin  && _bin  == rhs;
+	bool opEquals(scope const(ISLABinValue)[] rhs) const nothrow @nogc pure @trusted =>
+		_type == ISLABinType.list && _list == rhs;
+	bool opEquals(scope const ISLABinValue[immutable(void)[]] rhs) const nothrow @nogc pure @trusted =>
+		_type == ISLABinType.map  && _map  == rhs;
 	bool opEquals(scope const ISLABinValue rhs) const nothrow @nogc pure @trusted{
 		final switch(_type){
 			case ISLABinType.bin:  return _bin  == rhs;
@@ -129,12 +128,14 @@ struct ISLABinValue{
 		}
 	}
 	
+	///Idexes a list. Throws `ISLAException` if the `ISLABinValue` is not a list.
 	ref inout(ISLABinValue) opIndex(size_t i) inout pure @safe{
 		auto list = this.list;
 		if(i < list.length) return list[i];
 		throw new ISLAException("Out of bounds list index");
 	}
 	
+	///Looks up a key in a map. Throws `ISLAException` if the `ISLABinValue` is not a map.
 	ref inout(ISLABinValue) opIndex(scope const(void)[] key) inout pure @safe{
 		auto map = this.map;
 		if(auto val = key in map) return *val;
@@ -306,59 +307,62 @@ struct ISLABinValue{
 		]).toString() == "[61, 62, 63, [64: 65], 66]");
 	}
 	
-	private void encodeScope(scope ref void[] data) inout pure @trusted{
+	private void encodeScope(scope ref ubyte[] data) inout pure @trusted{
 		size_t prevDataLen = data.length;
 		final switch(_type){
 			case ISLABinType.bin:
-				static if(size_t.sizeof > 7)
-					ulong len = cast(ulong)_bin.length & 0x00FF_FFFF_FFFF_FFFFUL;
-				else
-					size_t len = _bin.length;
-				data.length += ulong.sizeof + len;
-				(cast(ubyte[])data).write!(ulong, Endian.littleEndian)(len, &prevDataLen);
+				static if(size_t.sizeof >= 4){
+					if(_bin.length > maxLength) throw new ISLAEncodeTooLongException("bin", _bin.length, maxLength);
+				}
+				data.length += uint.sizeof + _bin.length;
+				data.write!(uint, Endian.littleEndian)(cast(uint)_bin.length, &prevDataLen);
 				
-				data[prevDataLen..prevDataLen+len] = _bin[0..len];
+				data[prevDataLen..prevDataLen+_bin.length] = (cast(immutable(ubyte)[])_bin)[];
 				break;
 			case ISLABinType.list:
-				static if(size_t.sizeof > 7)
-					ulong len = cast(ulong)_list.length & 0x00FF_FFFF_FFFF_FFFFUL;
-				else
-					size_t len = _list.length;
-				data.length += ulong.sizeof;
-				(cast(ubyte[])data).write!(ulong, Endian.littleEndian)(0x01_00000000000000UL | len, prevDataLen);
+				static if(size_t.sizeof >= 4){
+					if(_list.length > maxLength) throw new ISLAEncodeTooLongException("list", _list.length, maxLength);
+				}
+				data.length += uint.sizeof;
+				data.write!(uint, Endian.littleEndian)(0x1_0000000U | cast(uint)_list.length, prevDataLen);
 				
-				foreach(item; _list[0..len]){
+				foreach(item; _list){
 					item.encodeScope(data);
 				}
 				break;
 			case ISLABinType.map:
-				static if(size_t.sizeof > 7)
-					ulong len = cast(ulong)_map.length & 0x00FF_FFFF_FFFF_FFFFUL;
-				else
-					size_t len = _map.length;
-				data.length += ulong.sizeof;
-				(cast(ubyte[])data).write!(ulong, Endian.littleEndian)(0x02_00000000000000UL | len, prevDataLen);
+				static if(size_t.sizeof >= 4){
+					if(_map.length > maxLength) throw new ISLAEncodeTooLongException("map", _map.length, maxLength);
+				}
+				data.length += uint.sizeof;
+				data.write!(uint, Endian.littleEndian)(0x2_0000000U | cast(uint)_map.length, prevDataLen);
 				
 				foreach(key, value; _map){
+					static if(size_t.sizeof > uint.sizeof){
+						if(key.length > uint.max) throw new ISLAEncodeTooLongException("map key", key.length, uint.max);
+					}
 					prevDataLen = data.length;
-					data.length += ulong.sizeof;
-					(cast(ubyte[])data).write!(ulong, Endian.littleEndian)(key.length, prevDataLen);
+					data.length += uint.sizeof + key.length;
+					data.write!(uint, Endian.littleEndian)(cast(uint)key.length, &prevDataLen);
+					data[prevDataLen..prevDataLen+key.length] = (cast(immutable(ubyte)[])key)[];
+					
 					value.encodeScope(data);
 				}
 				break;
 		}
 	}
 	
-	void[] encode() pure @safe inout{
-		void[] data;
+	///Convert this object and its children into a valid ISLA binary file
+	ubyte[] encode() pure @safe inout{
+		ubyte[] data;
 		this.encodeScope(data);
 		return header ~ data;
 	}
-	
 	unittest{
-		void[] val;
+		import std.algorithm.searching;
+		ubyte[] val;
 		val = ISLABinValue([
-			"health": ISLABinValue("100"),
+			"health": ISLABinValue(x"64"),
 			"items": ISLABinValue([
 				ISLABinValue("apple"),
 				ISLABinValue("apple"),
@@ -374,238 +378,191 @@ struct ISLABinValue{
 			]),
 			"grid": ISLABinValue([
 				ISLABinValue([
-					ISLABinValue("1"),
-					ISLABinValue("2"),
-					ISLABinValue("3"),
+					ISLABinValue(x"01"),
+					ISLABinValue(x"02"),
+					ISLABinValue(x"03"),
 				]),
 				ISLABinValue([
-					ISLABinValue("4"),
-					ISLABinValue("5"),
-					ISLABinValue("6"),
+					ISLABinValue(x"04"),
+					ISLABinValue(x"05"),
+					ISLABinValue(x"06"),
 				]),
 				ISLABinValue([
-					ISLABinValue("7"),
-					ISLABinValue("8"),
-					ISLABinValue("9"),
-					ISLABinValue(":"),
-					ISLABinValue(`"`),
+					ISLABinValue(x"07"),
+					ISLABinValue(x"08"),
+					ISLABinValue(x"09"),
 				]),
 			]),
 			"-5 - 3": ISLABinValue("negative five minus three"),
 			"=": ISLABinValue("equals"),
 			":)": ISLABinValue("smiley"),
 		]).encode();
+		
+		alias nToLE = nativeToLittleEndian;
+		assert(val.startsWith(isla.bin.header ~ nToLE(0x2_0000007U))); //header; type 2 (map); length 
+		assert(val.canFind(nToLE(0x00000006U) ~ cast(ubyte[])"health" ~ nToLE(0x0_0000001U) ~ x"64"));
+		assert(val.canFind(nToLE(0x00000005U) ~ cast(ubyte[])"items"  ~ nToLE(0x1_0000003U) ~
+			nToLE(0x0_0000005) ~ cast(ubyte[])"apple" ~
+			nToLE(0x0_0000005) ~ cast(ubyte[])"apple" ~
+			nToLE(0x0_0000003) ~ cast(ubyte[])"key"
+		));
+		assert(val.canFind(nToLE(0x0000000CU) ~ cast(ubyte[])"translations"  ~ nToLE(0x2_0000001U) ~
+			nToLE(0x00000005U) ~ cast(ubyte[])"en-UK"  ~ nToLE(0x2_0000004U)
+		));
+		assert(val.canFind(nToLE(0x0000000FU) ~ cast(ubyte[])"item.apple.name"        ~ nToLE(0x0_0000005U) ~ cast(ubyte[])"Apple"));
+		assert(val.canFind(nToLE(0x00000016U) ~ cast(ubyte[])"item.apple.description" ~ nToLE(0x0_000004AU) ~ cast(ubyte[])"A shiny, ripe, red apple that\nfell from a nearby tree.\nIt looks delicious!"));
+		assert(val.canFind(nToLE(0x0000000DU) ~ cast(ubyte[])"item.key.name"        ~ nToLE(0x0_0000003U) ~ cast(ubyte[])"Key"));
+		assert(val.canFind(nToLE(0x00000014U) ~ cast(ubyte[])"item.key.description" ~ nToLE(0x0_0000043U) ~ cast(ubyte[])"A rusty old-school golden key.\nYou don't know what door it unlocks."));
+		assert(val.canFind(nToLE(0x00000004U) ~ cast(ubyte[])"grid" ~ nToLE(0x1_0000003U) ~
+			nToLE(0x1_0000003U) ~
+				nToLE(0x0_0000001U) ~ x"01" ~
+				nToLE(0x0_0000001U) ~ x"02" ~
+				nToLE(0x0_0000001U) ~ x"03" ~
+			nToLE(0x1_0000003U) ~
+				nToLE(0x0_0000001U) ~ x"04" ~
+				nToLE(0x0_0000001U) ~ x"05" ~
+				nToLE(0x0_0000001U) ~ x"06" ~
+			nToLE(0x1_0000003U) ~
+				nToLE(0x0_0000001U) ~ x"07" ~
+				nToLE(0x0_0000001U) ~ x"08" ~
+				nToLE(0x0_0000001U) ~ x"09"
+		));
+		assert(val.canFind(nToLE(0x00000006U) ~ cast(ubyte[])"-5 - 3" ~ nToLE(0x0_0000019U) ~ cast(ubyte[])"negative five minus three"));
+		assert(val.canFind(nToLE(0x00000001U) ~ cast(ubyte[])"="      ~ nToLE(0x0_0000006U) ~ cast(ubyte[])"equals"));
+		assert(val.canFind(nToLE(0x00000002U) ~ cast(ubyte[])":)"     ~ nToLE(0x0_0000006U) ~ cast(ubyte[])"smiley"));
 	}
 }
-/+
-private struct DecodeImpl(R){
-	R lines;
-	size_t lineNum = 1;
-	
-	pure @safe:
-	bool startLine(ref string line, size_t level, out size_t newLevel){
-		if(line.length == 0){
-			newLevel = level;
-			return false;
-		 }
-		 
-		foreach(ch; line[0..($ < level ? $ : level)]){
-			if(ch == '\t'){
-				newLevel++;
-			}else if(ch == ';'){
-				newLevel = level;
-				return false;
-			}else break;
-		}
-		if(level > line.length){
-			newLevel = level;
-			return false;
-		}
-		line = line[level..$];
-		if(line.length == 0) return false;
-		if(line[0] == ';') return false;
-		if(newLevel < level) return false;
-		else if(line[0] == '\t') throw new ISLAException("Nesting level too high for scope with level "~level.to!string()~" on line "~lineNum.to!string());
-		return true;
-	}
-	
-	ISLABinValue decodeScope(size_t level, ref size_t newLevel){
-		while(!lines.empty){
-			lines.popFront(); lineNum++;
-			auto line = lines.front;
-			
-			if(!startLine(line, level, newLevel)){
-				if(newLevel < level) throw new ISLAException("Scope immediately ended on line "~lineNum.to!string()); //TODO: maybe return null??????
-				else continue;
-			}
-			
-			if(line[0] == '-')
-				return ISLABinValue(decodeList(level, newLevel));
-			else
-				return ISLABinValue(decodeMap(level, newLevel));
-		}
-		throw new ISLAException("Expected scope before EOF");
-	}
-	
-	ISLABinValue[] decodeList(size_t level, ref size_t newLevel){
-		ISLABinValue[] ret;
-		while(!lines.empty){
-			auto line = lines.front;
-			if(!startLine(line, level, newLevel)){
-				if(newLevel < level) break;
+
+private ISLABinValue decodeScope(scope ref immutable(ubyte)[] data) pure @safe{
+	const lenType = data.read!(uint, Endian.littleEndian)();
+	size_t len = lenType & ISLABinValue.maxLength;
+	const type = cast(ISLABinType)(lenType >> ISLABinValue.lengthBits);
+	switch(type){
+		case ISLABinType.bin:
+			if(len <= data.length){
+				scope(exit) data = data[len..$];
+				return ISLABinValue(bin: len ? data[0..len] : null);
 			}else{
-				if(line[0] != '-'){
-					throw new ISLAException("Expected list item on line "~lineNum.to!string());
-				}else if(line == "-:"){
-					ret ~= decodeScope(level+1, newLevel);
-					if(newLevel < level) break;
-					continue;
-				}else if(line == `-"`){
-					ret ~= decodeMultiLineValue();
-				}else if(line == `-\:`){
-					ret ~= ISLABinValue(":");
-				}else{
-					ret ~= ISLABinValue(line[1..$]);
-				}
+				throw new ISLADecodeOOBException("bin", len, data.length);
 			}
-			lines.popFront(); lineNum++;
-		}
-		return ret;
-	}
-	
-	ISLABinValue[immutable(void)[]] decodeMap(size_t level, ref size_t newLevel){
-		ISLABinValue[immutable(void)[]] ret;
-		decodeLines: while(!lines.empty){
-			auto line = lines.front;
-			if(!startLine(line, level, newLevel)){
-				if(newLevel < level) break;
+		case ISLABinType.list:
+			if(len * uint.sizeof <= data.length){
+				auto list = new ISLABinValue[](len);
+				foreach(ref item; list)
+					item = data.decodeScope();
+				
+				return ISLABinValue(list: len ? list : null);
 			}else{
-				immutable(void)[] key;
-				bool escape = false;
-				foreach(i, ch; line){
-					if(escape){
-						if(ch == '=' || ch == ':' || ch == '-'){ //check for valid escapes
-							key ~= ch;
-						}else{
-							key ~= `\`~ch; //otherwise, re-insert the reverse solidus that was skipped
-						}
-						escape = false;
-					}else if(ch == '\\'){
-						escape = true; //mark the next char to be checked, and skip adding the reverse solidus to the key for now
-					}else if(ch == '='){
-						auto val = line[i+1..$];
-						ret[key] = val == `"` ? decodeMultiLineValue() : ISLABinValue(val);
-						break;
-					}else if(ch == ':'){
-						if(line.length-1 > i) throw new ISLAException("Unexpected data after colon after key on line "~lineNum.to!string()~": "~line[i..$]);
-						ret[key] = decodeScope(level+1, newLevel);
-						if(newLevel < level) return ret;
-						continue decodeLines;
+				throw new ISLADecodeOOBException("list", len, data.length);
+			}
+		case ISLABinType.map:
+			if(len * uint.sizeof * 2U <= data.length){
+				ISLABinValue[immutable(void)[]] map;
+				foreach(_; 0..len){
+					const keyLen = data.read!(uint, Endian.littleEndian)();
+					if(keyLen <= data.length){
+						auto key = data[0..keyLen];
+						data = data[keyLen..$];
+						map[key] = data.decodeScope();
 					}else{
-						key ~= ch;
+						throw new ISLADecodeOOBException("map key", keyLen, data.length);
 					}
 				}
+				return ISLABinValue(map: map);
+			}else{
+				throw new ISLADecodeOOBException("map", len, data.length);
 			}
-			lines.popFront(); lineNum++;
-		}
-		return ret;
-	}
-	
-	ISLABinValue decode(){
-		if(lines.empty) throw new ISLAException("Empty range provided");
-		
-		if(lines.front != header) throw new ISLAException("Bad header: "~lines.front);
-		
-		size_t newLevel;
-		return decodeScope(0, newLevel);
+		default:
+			throw new ISLAException("Invalid type: "~type.to!string());
 	}
 }
 
 /**
-Decodes a series of lines representing data in the ISLA format.
+Decodes a series of bytes representing data in the ISLA binary format.
 
 Params:
-	lines = A range of `string`s.
+	data = A range of `void`s.
 */
-ISLABinValue decode(R)(R lines) pure @safe
-if(isInputRange!R && is(typeof(lines.front): string)){
-	return DecodeImpl!R(lines).decode();
+ISLABinValue decode(scope immutable(void)[] data) pure @safe{
+	if(data.length == 0) throw new ISLAException("Empty array provided");
+	
+	if(data[0..header.length] != header) throw new ISLAException("Bad header: "~data[0..header.length].toHexString());
+	data = data[header.length..$];
+	
+	auto ubyteArr = cast(immutable(ubyte)[])data;
+	return ubyteArr.decodeScope();
 }
 unittest{
 	ISLABinValue val;
-	val = isla.bin.decode(header ~
-		//TT LLLLLLLLLLLLLL (1 byte for type, 7 bytes for length)
-		x"01 00000000000004" ~ //type 1 (list), 4 entries
-		x"00 00000000000002" ~ cast(immutable(void)[])";)" ~ //type 0 (bin), 2 bytes
-		x"00 00000000000002" ~ cast(immutable(void)[])":3" ~ //type 0 (bin), 2 bytes
-		x"00 00000000000000" ~                               //type 0 (bin), 0 bytes (null)
-		x"00 00000000000001" ~ cast(immutable(void)[])":"    //type 0 (bin), 1 byte
-	);
+	alias nToLE = nativeToLittleEndian;
+	val = isla.bin.decode((header ~
+		//      T LLLLLLL (4-bit type; 28-bit length)
+		nToLE(0x1_0000004U) ~ //type:1 (list), length:4
+		nToLE(0x0_0000002U) ~ cast(ubyte[])";)" ~ //type:0 (bin), length:2 bytes
+		nToLE(0x0_0000002U) ~ cast(ubyte[])":3" ~ //type:0 (bin), length:2 bytes
+		nToLE(0x0_0000000U) ~                     //type:0 (bin), length:0 bytes (i.e. null)
+		nToLE(0x0_0000001U) ~ cast(ubyte[])":"    //type:0 (bin), length:1 byte
+	).idup());
 	assert(val[0] == ";)");
 	assert(val[1] == ":3");
-	assert(val[2] == null);
+	assert(val[2] is ISLABinValue(bin: null));
 	assert(val[3] == ":");
 	
-	val = isla.bin.decode(header ~
-		x"02 00000000000004" ~ //type 2 (map), 4 entries
-		x"0000000000000002" ~ cast(immutable(void)[])"-3"         ~ x"00 0000000000000B" ~ cast(immutable(void)[])"Minus three" ~
-		x"0000000000000006" ~ cast(immutable(void)[])"e=mc^2"     ~ x"00 00000000000019" ~ cast(immutable(void)[])"Mass–energy equivalence" ~
-		x"000000000000000D" ~ cast(immutable(void)[])`¯\_(ツ)_/¯` ~ x"00 00000000000007" ~ cast(immutable(void)[])"a shrug" ~
-		x"0000000000000002" ~ cast(immutable(void)[])":)"         ~ x"00 00000000000008" ~ cast(immutable(void)[])"a smiley"
-	);
+	val = isla.bin.decode((header ~
+		nToLE(0x2_0000004) ~ //type:2 (map), length:4
+		nToLE(0x00000002) ~ cast(ubyte[])"-3"         ~ nToLE(0x0_000000B) ~ cast(ubyte[])"Minus three" ~
+		nToLE(0x00000006) ~ cast(ubyte[])"e=mc^2"     ~ nToLE(0x0_0000019) ~ cast(ubyte[])"Mass–energy equivalence" ~
+		nToLE(0x0000000D) ~ cast(ubyte[])`¯\_(ツ)_/¯` ~ nToLE(0x0_0000007) ~ cast(ubyte[])"a shrug" ~
+		nToLE(0x00000002) ~ cast(ubyte[])":)"         ~ nToLE(0x0_0000008) ~ cast(ubyte[])"a smiley"
+	).idup());
 	assert("-3" in val);
 	assert("e=mc^2" in val);
 	assert(`¯\_(ツ)_/¯` in val);
 	assert(":)" in val);
+	assert(":(" !in val);
+	assert(null !in val);
 	
-	val = isla.bin.decode(header ~
-		x"02 00000000000001" ~ //type 2 (map), 1 entry
-		x"0000000000000005"  ~ cast(immutable(void)[])"Quote" ~
-		x"00 0000000000003F" ~ cast(immutable(void)[])"He engraved on it the words:\n\"And this, too, shall pass away.\n\""
-	);
+	val = isla.bin.decode((header ~
+		nToLE(0x2_0000001) ~ //type:2 (map), length:1
+		nToLE(0x00000005) ~ cast(ubyte[])"Quote" ~ nToLE(0x0_000003F) ~ cast(ubyte[])"He engraved on it the words:\n\"And this, too, shall pass away.\n\""
+	).idup());
 	assert(val["Quote"] == "He engraved on it the words:\n\"And this, too, shall pass away.\n\"");
-	/+
-	val = isla.bin.decode(header ~ q"isla
-health=100
-items:
-	-apple
-	-apple
-	-key
-translations:
-	en-UK:
-		;United Kingdom English
-	
-		item.apple.name=Apple
-		item.apple.description="
-A shiny, ripe, red apple that
-fell from a nearby tree.
-It looks delicious!
-"
-		item.key.name=Key
-		item.key.description="
-A rusty old-school golden key.
-You don't know what door it unlocks.
-"
-grid:
-	-:
-		-1
-		-2
-		-3
-	-:
-		-4
-		-5
-		-6
-		
-;seven eight nine...
-	-:
-		-7
-		-8
-		-9
-isla".splitLines());
-	assert(val["health"] == ISLABinValue("100"));
-	assert(val["health"] == "100");
+	val = isla.bin.decode((header ~ nToLE(0x2_0000007U) ~ //header; type:2 (map), length:7
+		nToLE(0x00000006U) ~ cast(ubyte[])"health" ~ nToLE(0x0_0000001U) ~ x"64" ~ //key length:6; key:"health"; type:0 (bin),  length:1; value:100
+		nToLE(0x00000005U) ~ cast(ubyte[])"items"  ~ nToLE(0x1_0000003U) ~         //key length:5; key:"items";  type:1 (list), length:3
+			nToLE(0x0_0000005) ~ cast(ubyte[])"apple" ~ //type:0 (bin), length:5; value:"apple"
+			nToLE(0x0_0000005) ~ cast(ubyte[])"apple" ~ //et cetera
+			nToLE(0x0_0000003) ~ cast(ubyte[])"key" ~
+		nToLE(0x0000000CU) ~ cast(ubyte[])"translations"  ~ nToLE(0x2_0000001U) ~
+			nToLE(0x00000005U) ~ cast(ubyte[])"en-UK"  ~ nToLE(0x2_0000004U) ~
+		nToLE(0x0000000FU) ~ cast(ubyte[])"item.apple.name"        ~ nToLE(0x0_0000005U) ~ cast(ubyte[])"Apple" ~
+		nToLE(0x00000016U) ~ cast(ubyte[])"item.apple.description" ~ nToLE(0x0_000004AU) ~ cast(ubyte[])"A shiny, ripe, red apple that\nfell from a nearby tree.\nIt looks delicious!" ~
+		nToLE(0x0000000DU) ~ cast(ubyte[])"item.key.name"        ~ nToLE(0x0_0000003U) ~ cast(ubyte[])"Key" ~
+		nToLE(0x00000014U) ~ cast(ubyte[])"item.key.description" ~ nToLE(0x0_0000043U) ~ cast(ubyte[])"A rusty old-school golden key.\nYou don't know what door it unlocks." ~
+		nToLE(0x00000004U) ~ cast(ubyte[])"grid" ~ nToLE(0x1_0000003U) ~
+			nToLE(0x1_0000003U) ~
+				nToLE(0x0_0000001U) ~ x"01" ~
+				nToLE(0x0_0000001U) ~ x"02" ~
+				nToLE(0x0_0000001U) ~ x"03" ~
+			nToLE(0x1_0000003U) ~
+				nToLE(0x0_0000001U) ~ x"04" ~
+				nToLE(0x0_0000001U) ~ x"05" ~
+				nToLE(0x0_0000001U) ~ x"06" ~
+			nToLE(0x1_0000003U) ~
+				nToLE(0x0_0000001U) ~ x"07" ~
+				nToLE(0x0_0000001U) ~ x"08" ~
+				nToLE(0x0_0000001U) ~ x"09" ~
+		nToLE(0x00000006U) ~ cast(ubyte[])"-5 - 3" ~ nToLE(0x0_0000019U) ~ cast(ubyte[])"negative five minus three" ~
+		nToLE(0x00000001U) ~ cast(ubyte[])"="      ~ nToLE(0x0_0000006U) ~ cast(ubyte[])"equals" ~
+		nToLE(0x00000002U) ~ cast(ubyte[])":)"     ~ nToLE(0x0_0000006U) ~ cast(ubyte[])"smiley"
+	).idup());
+	assert(val["health"] == ISLABinValue(x"64"));
+	assert(val["health"] == x"64");
+	assert(val["items"][1] == "apple");
 	assert(val["translations"]["en-UK"]["item.apple.name"] == "Apple");
-	assert(val["grid"][1][1] == "5");
-	+/
+	assert(val["translations"]["en-UK"]["item.key.description"] == "A rusty old-school golden key.\nYou don't know what door it unlocks.");
+	assert(val["grid"][1][1] == x"05");
+	assert(val["-5 - 3"] == "negative five minus three");
+	assert(val["="] == "equals");
+	assert(val[":)"] == "smiley");
 }
-+/
