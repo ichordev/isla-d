@@ -1,6 +1,6 @@
 {
 	"name": "isla",
-	"description": "A simple & usable library for the ISLA serialisation formats.",
+	"description": "Simple & usable binary/text serialisation in the ISLA format.",
 	"authors": ["Aya Partridge"],
 	"license": "BSL-1.0",
 	
