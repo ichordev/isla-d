@@ -144,24 +144,49 @@ struct ISLABinValue{
 	
 	inout(ISLABinValue) get(scope size_t i, return scope inout(ISLABinValue) fallback) inout nothrow @nogc pure @trusted =>
 		_type == ISLABinType.list && i < _list.length ? _list[i] : fallback;
+	deprecated("Due to issues with overload ambiguity, only use `get` for getting ISLAValues directly. Please use `getBin` instead for getting type `bin` instead")
 	const(void)[] get(scope size_t i, return scope const(void)[] fallback) inout nothrow @nogc pure @trusted =>
 		_type == ISLABinType.list && i < _list.length && _list[i]._type == ISLABinType.bin  ? _list[i]._bin  : fallback;
+	deprecated("Due to issues with overload ambiguity, only use `get` for getting ISLAValues directly. Please use `getList` instead for getting type `list` instead")
 	inout(ISLABinValue)[] get(scope size_t i, return scope inout(ISLABinValue)[] fallback) inout nothrow @nogc pure @trusted =>
 		_type == ISLABinType.list && i < _list.length && _list[i]._type == ISLABinType.list ? _list[i]._list : fallback;
+	deprecated("Due to issues with overload ambiguity, only use `get` for getting ISLAValues directly. Please use `getMap` instead for getting type `map` instead")
 	inout(ISLABinValue[immutable(void)[]]) get(scope size_t i, return scope inout(ISLABinValue[immutable(void)[]]) fallback) inout nothrow @nogc pure @trusted =>
 		_type == ISLABinType.list && i < _list.length && _list[i]._type == ISLABinType.map  ? _list[i]._map  : fallback;
+	const(void)[] getBin(scope size_t i, return scope const(void)[] fallback) inout nothrow @nogc pure @trusted =>
+		_type == ISLABinType.list && i < _list.length && _list[i]._type == ISLABinType.bin  ? _list[i]._bin  : fallback;
+	inout(ISLABinValue)[] getList(scope size_t i, return scope inout(ISLABinValue)[] fallback) inout nothrow @nogc pure @trusted =>
+		_type == ISLABinType.list && i < _list.length && _list[i]._type == ISLABinType.list ? _list[i]._list : fallback;
+	inout(ISLABinValue[immutable(void)[]]) getMap(scope size_t i, return scope inout(ISLABinValue[immutable(void)[]]) fallback) inout nothrow @nogc pure @trusted =>
+		_type == ISLABinType.list && i < _list.length && _list[i]._type == ISLABinType.map  ? _list[i]._map  : fallback;
+	unittest{
+		const val = ISLABinValue([
+			ISLABinValue("50"), ISLABinValue("-72"), ISLABinValue("4"), ISLABinValue("509"),
+			ISLABinValue(["1", "2"]),
+			ISLABinValue(["one": "1"]),
+		]);
+		assert(val.get(0, ISLABinValue("9")).bin  == "50");
+		assert(val.get(6, ISLABinValue("12")).bin == "12");
+		assert(val.getBin(0, "9")  == "50");
+		assert(val.getBin(7, "12") == "12");
+		assert(val.getList(4, [ISLABinValue("3")]) == [ISLABinValue("1"), ISLABinValue("2")]);
+		assert(val.getList(8, [ISLABinValue("3")]) == [ISLABinValue("3")]);
+		assert(val.getMap(5, [cast(immutable(void)[])"two": ISLABinValue("2")]) == cast(const)[cast(immutable(void)[])"one": ISLABinValue("1")]);
+		assert(val.getMap(9, [cast(immutable(void)[])"two": ISLABinValue("2")]) == cast(const)[cast(immutable(void)[])"two": ISLABinValue("2")]);
+	}
 	
-	T get(alias parse=(a) => a, T)(scope size_t i, return scope T fallback) inout{
+	deprecated("`get` with parser cannot support delegates. Please use `parse` instead")
+	T get(alias parser=(a) => a, T)(scope size_t i, return scope T fallback) inout{
 		if(_type == ISLABinType.list && i < _list.length){
-			static if(is(typeof(parse(ISLABinValue.init)): T)){
-				return parse(_list[i]);
-			}else static if(is(typeof(parse(cast(immutable(void)[])"")): T)){
-				if(_list[i]._type == ISLABinType.bin)  return parse(_list[i]._bin);
-			}else static if(is(typeof(parse([ISLABinValue.init])): T)){
-				if(_list[i]._type == ISLABinType.list) return parse(_list[i]._list);
-			}else static if(is(typeof(parse([cast(immutable(void)[])"": ISLABinValue.init])): T)){
-				if(_list[i]._type == ISLABinType.map)  return parse(_list[i]._map);
-			}else static assert(0, "`parse` does not return `"~T.stringof~"` when passed an `ISLABinValue` or any of its sub-types");
+			static if(is(typeof(parser(ISLABinValue.init)): T)){
+				return parser(_list[i]);
+			}else static if(is(typeof(parser(cast(immutable(void)[])"")): T)){
+				if(_list[i]._type == ISLABinType.bin)  return parser(_list[i]._bin);
+			}else static if(is(typeof(parser([ISLABinValue.init])): T)){
+				if(_list[i]._type == ISLABinType.list) return parser(_list[i]._list);
+			}else static if(is(typeof(parser([cast(immutable(void)[])"": ISLABinValue.init])): T)){
+				if(_list[i]._type == ISLABinType.map)  return parser(_list[i]._map);
+			}else static assert(0, "`parser` does not return `"~T.stringof~"` when passed an `ISLABinValue` or any of its sub-types");
 		}
 		return fallback;
 	}
@@ -174,6 +199,7 @@ struct ISLABinValue{
 		}
 		return fallback;
 	}
+	deprecated("Due to issues with overload ambiguity, only use `get` for getting ISLAValues directly. Please use `getBin` instead for getting type `bin` instead")
 	const(void)[] get(scope const(void)[] key, return scope const(void)[] fallback) inout nothrow @nogc pure @trusted{
 		if(_type == ISLABinType.map){
 			if(auto ret = key in _map){
@@ -184,6 +210,7 @@ struct ISLABinValue{
 		}
 		return fallback;
 	}
+	deprecated("Due to issues with overload ambiguity, only use `get` for getting ISLAValues directly. Please use `getList` instead for getting type `list` instead")
 	inout(ISLABinValue)[] get(scope const(void)[] key, return scope inout(ISLABinValue)[] fallback) inout nothrow @nogc pure @trusted{
 		if(_type == ISLABinType.map){
 			if(auto ret = key in _map){
@@ -194,6 +221,7 @@ struct ISLABinValue{
 		}
 		return fallback;
 	}
+	deprecated("Due to issues with overload ambiguity, only use `get` for getting ISLAValues directly. Please use `getMap` instead for getting type `map` instead")
 	inout(ISLABinValue[immutable(void)[]]) get(scope const(void)[] key, return scope inout(ISLABinValue[immutable(void)[]]) fallback) inout nothrow @nogc pure @trusted{
 		if(_type == ISLABinType.map){
 			if(auto ret = key in _map){
@@ -204,44 +232,67 @@ struct ISLABinValue{
 		}
 		return fallback;
 	}
-	
-	T get(alias parse=(a) => a, T)(scope const(void)[] key, return scope T fallback) inout{
+	const(void)[] getBin(scope const(void)[] key, return scope const(void)[] fallback) inout nothrow @nogc pure @trusted{
 		if(_type == ISLABinType.map){
 			if(auto ret = key in _map){
-				static if(is(typeof(parse(ISLABinValue.init)): T)){
-					return parse(*ret);
-				}else static if(is(typeof(parse(cast(immutable(void)[])"")): T)){
-					if(ret._type == ISLABinType.bin)  return parse(ret._bin);
-				}else static if(is(typeof(parse([ISLABinValue.init])): T)){
-					if(ret._type == ISLABinType.list) return parse(ret._list);
-				}else static if(is(typeof(parse([cast(immutable(void)[])"": ISLABinValue.init])): T)){
-					if(ret._type == ISLABinType.map)  return parse(ret._map);
-				}else static assert(0, "`parse` does not return `"~T.stringof~"` when passed an `ISLABinValue` or any of its sub-types");
+				if(ret._type == ISLABinType.bin){
+					return ret._bin;
+				}
 			}
 		}
 		return fallback;
 	}
-	
+	inout(ISLABinValue)[] getList(scope const(void)[] key, return scope inout(ISLABinValue)[] fallback) inout nothrow @nogc pure @trusted{
+		if(_type == ISLABinType.map){
+			if(auto ret = key in _map){
+				if(ret._type == ISLABinType.list){
+					return ret._list;
+				}
+			}
+		}
+		return fallback;
+	}
+	inout(ISLABinValue[immutable(void)[]]) getMap(scope const(void)[] key, return scope inout(ISLABinValue[immutable(void)[]]) fallback) inout nothrow @nogc pure @trusted{
+		if(_type == ISLABinType.map){
+			if(auto ret = key in _map){
+				if(ret._type == ISLABinType.map){
+					return ret._map;
+				}
+			}
+		}
+		return fallback;
+	}
 	unittest{
-		ISLABinValue val;
-		val = ISLABinValue(["50", "-72", "4", "509"]);
-		
-		assert(val.get(0, "9")  == "50");
-		assert(val.get(4, "12") == "12");
-		
-		static int toInt(const(void)[] bin) =>
-			(cast(string)bin).to!int();
-		
-		assert(val.get!(toInt)(0,  9)   == 50);
-		assert(val.get!(toInt)(4, 12)   == 12);
-		
-		val = ISLABinValue(["two": "2", "four": "4", "six": "6"]);
-		
-		assert(val.get("two",   "7") == "2");
-		assert(val.get("eight", "8") == "8");
-		
-		assert(val.get!(toInt)("two",   7) == 2);
-		assert(val.get!(toInt)("eight", 8) == 8);
+		const val = ISLABinValue([
+			"two": ISLABinValue("2"), "four": ISLABinValue("4"), "six": ISLABinValue("6"),
+			"123": ISLABinValue(["1", "2", "3"]), "twotwo": ISLABinValue(["two": "2"]),
+		]);
+		assert(val.get("two",   ISLABinValue("7")).bin == "2");
+		assert(val.get("eight", ISLABinValue("8")).bin == "8");
+		assert(val.getBin("two",   "7") == "2");
+		assert(val.getBin("eight", "8") == "8");
+		assert(val.getList("123", [ISLABinValue("4")]) == ["1", "2", "3"]);
+		assert(val.getList("321", [ISLABinValue("3"), ISLABinValue("2"), ISLABinValue("1")]) == ["3", "2", "1"]);
+		assert(val.getMap("twotwo", [cast(immutable(void)[])"four": ISLABinValue("4")]) == cast(const)[cast(immutable(void)[])"two": ISLABinValue("2")]);
+		assert(val.getMap("fourfour", [cast(immutable(void)[])"four": ISLABinValue("4")]) == cast(const)[cast(immutable(void)[])"four": ISLABinValue("4")]);
+	}
+	
+	deprecated("`get` with parser cannot support delegates. Please use `parse` instead")
+	T get(alias parser=(a) => a, T)(scope const(void)[] key, return scope T fallback) inout{
+		if(_type == ISLABinType.map){
+			if(auto ret = key in _map){
+				static if(is(typeof(parser(ISLABinValue.init)): T)){
+					return parser(*ret);
+				}else static if(is(typeof(parser(cast(immutable(void)[])"")): T)){
+					if(ret._type == ISLABinType.bin)  return parser(ret._bin);
+				}else static if(is(typeof(parser([ISLABinValue.init])): T)){
+					if(ret._type == ISLABinType.list) return parser(ret._list);
+				}else static if(is(typeof(parser([cast(immutable(void)[])"": ISLABinValue.init])): T)){
+					if(ret._type == ISLABinType.map)  return parser(ret._map);
+				}else static assert(0, "`parser` does not return `"~T.stringof~"` when passed an `ISLABinValue` or any of its sub-types");
+			}
+		}
+		return fallback;
 	}
 	
 	inout(ISLABinValue) opIndexAssign(inout(ISLABinValue) val, size_t i){
@@ -431,6 +482,79 @@ struct ISLABinValue{
 		assert(val.canFind(nToLE(0x00000001U) ~ cast(ubyte[])"="      ~ nToLE(0x0_0000006U) ~ cast(ubyte[])"equals"));
 		assert(val.canFind(nToLE(0x00000002U) ~ cast(ubyte[])":)"     ~ nToLE(0x0_0000006U) ~ cast(ubyte[])"smiley"));
 	}
+}
+
+T parse(alias parser, T)(const ISLABinValue val, scope size_t i, return scope T fallback) =>
+	val._type == ISLABinType.list && i < val._list.length ? parser(val._list[i]) : fallback;
+T parseBin(alias parser, T)(const ISLABinValue val, scope size_t i, return scope T fallback) =>
+	val._type == ISLABinType.list && i < val._list.length && val._list[i]._type == ISLABinType.bin  ? parser(val._list[i]._bin)  : fallback;
+T parseList(alias parser, T)(const ISLABinValue val, scope size_t i, return scope T fallback) =>
+	val._type == ISLABinType.list && i < val._list.length && val._list[i]._type == ISLABinType.list ? parser(val._list[i]._list) : fallback;
+T parseMap(alias parser, T)(const ISLABinValue val, scope size_t i, return scope T fallback) =>
+	val._type == ISLABinType.list && i < val._list.length && val._list[i]._type == ISLABinType.map  ? parser(val._list[i]._map)  : fallback;
+unittest{
+	const val = ISLABinValue([
+		ISLABinValue("50"), ISLABinValue("-72"), ISLABinValue("4"), ISLABinValue("509"),
+		ISLABinValue(["1", "2"]),
+		ISLABinValue(["one": "1"]),
+	]);
+	assert(val.parse!(v => (cast(string)v.bin).to!int())(0,  9) == 50);
+	assert(val.parse!(v => (cast(string)v.bin).to!int())(6, 12) == 12);
+	assert(val.parseBin!(b => (cast(string)b).to!int())(0,  9) == 50);
+	assert(val.parseBin!(b => (cast(string)b).to!int())(7, 12) == 12);
+	import std.algorithm.iteration, std.array, std.typecons;
+	assert(val.parseList!(l => l.map!(i => (cast(string)i.bin).to!int()).array)(4, [3]) == [1, 2]);
+	assert(val.parseList!(l => l.map!(i => (cast(string)i.bin).to!int()).array)(8, [3]) == [3]);
+	assert(val.parseMap!(m => m.byPair.map!(kv => tuple(kv[0], (cast(string)kv[1].bin).to!int())).assocArray)(5, [cast(immutable(void)[])"two": 2]) == [cast(immutable(void)[])"one": 1]);
+	assert(val.parseMap!(m => m.byPair.map!(kv => tuple(kv[0], (cast(string)kv[1].bin).to!int())).assocArray)(9, [cast(immutable(void)[])"two": 2]) == [cast(immutable(void)[])"two": 2]);
+}
+
+T parse(alias parser, T)(const ISLABinValue val, scope const(void)[] key, return scope T fallback){
+	if(val._type == ISLABinType.map){
+		if(auto ret = key in val._map){
+			return parser(*ret);
+		}
+	}
+	return fallback;
+}
+T parseBin(alias parser, T)(const ISLABinValue val, scope const(void)[] key, return scope T fallback){
+	if(val._type == ISLABinType.map){
+		if(auto ret = key in val._map){
+			if(ret._type == ISLABinType.bin)  return parser(ret._bin);
+		}
+	}
+	return fallback;
+}
+T parseList(alias parser, T)(const ISLABinValue val, scope const(void)[] key, return scope T fallback){
+	if(val._type == ISLABinType.map){
+		if(auto ret = key in val._map){
+			if(ret._type == ISLABinType.list) return parser(ret._list);
+		}
+	}
+	return fallback;
+}
+T parseMap(alias parser, T)(const ISLABinValue val, scope const(void)[] key, return scope T fallback){
+	if(val._type == ISLABinType.map){
+		if(auto ret = key in val._map){
+			if(ret._type == ISLABinType.map)  return parser(ret._map);
+		}
+	}
+	return fallback;
+}
+unittest{
+	const val = ISLABinValue([
+		"two": ISLABinValue("2"), "four": ISLABinValue("4"), "six": ISLABinValue("6"),
+		"123": ISLABinValue(["1", "2", "3"]), "twotwo": ISLABinValue(["two": "2"]),
+	]);
+	assert(val.parse!(v => (cast(string)v.bin).to!int())("two",   7) == 2);
+	assert(val.parse!(v => (cast(string)v.bin).to!int())("eight", 8) == 8);
+	assert(val.parseBin!(b => (cast(string)b).to!int())("two",   7) == 2);
+	assert(val.parseBin!(b => (cast(string)b).to!int())("eight", 8) == 8);
+	import std.algorithm.iteration, std.array, std.typecons;
+	assert(val.parseList!(l => l.map!(i => (cast(string)i.bin).to!int()).array)("123", [4]) == [1, 2, 3]);
+	assert(val.parseList!(l => l.map!(i => (cast(string)i.bin).to!int()).array)("321", [3, 2, 1]) == [3, 2, 1]);
+	assert(val.parseMap!(m => m.byPair.map!(kv => tuple(cast(string)kv[0], (cast(string)kv[1].bin).to!int())).assocArray)("twotwo", ["four": 4]) == ["two": 2]);
+	assert(val.parseMap!(m => m.byPair.map!(kv => tuple(cast(string)kv[0], (cast(string)kv[1].bin).to!int())).assocArray)("fourfour", ["four": 4]) == ["four": 4]);
 }
 
 private ISLABinValue decodeScope(scope ref immutable(ubyte)[] data) pure @safe{

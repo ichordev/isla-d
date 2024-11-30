@@ -11,6 +11,8 @@ Both varieties of ISLA recognise 3 distinct types:
 - list: an ordered list of values.
 - map: a key-value map. Keys are always str/bin.
 
+ISLA text also has a 'none' type, which is returned when decoding empty lists or maps.
+
 ## Examples
 ISLA text:
 ```d
@@ -27,16 +29,26 @@ void loadSaveData(ref Hero hero){
 	import std.conv: to;
 	try{
 		//get "hp", converted to int. If "hp" is not found, default to `100`
-		hero.health = saveData.get("hp", to!int, 100);
-		hero.level = saveData.get("level", to!int, 1);
+		hero.health = saveData.parseStr!(to!int)("hp", 100);
+		hero.level = saveData.parseStr!(to!int)("level", 1);
 		
 		//get item 0 from "pos", converted to double. If "pos" is not found, an ISLAMapKeyException will be thrown
 		hero.x = saveData["pos"][0].to!double();
 		hero.y = saveData["pos"][1].to!double();
 	}catch(ISLAException ex){
-		//handle the exception...
+		//handle any exceptions...
 		quit(error: ex.toString());
 	}
+}
+
+void saveSaveData(ref Hero hero){
+	import std.file: write;
+	import std.format: format;
+	write("savefile.isla", ISLAValue(
+		"hp": ISLAValue("%s".format(hero.health)),
+		"level": ISLAValue("%s".format(hero.level)),
+		"pos": ISLAValue(["%s".format(hero.x), "%s".format(hero.y)]),
+	).encode());
 }
 ```
 
@@ -52,19 +64,29 @@ void loadSaveData(ref Hero hero){
 	ISLABinValue saveData = isla.bin.decode(saveFileContent);
 	
 	import std.bitmanip: peek;
-	auto read(T)(const(void)[] x) => peek!T(cast(const(ubyte)[])x);
+	static read(T)(const(void)[] x) => peek!T(cast(const(ubyte)[])x);
 	try{
 		//get "hp", converted to int. If "hp" is not found, default to `100`
-		hero.health = saveData.get("hp", read!int, 100);
+		hero.health = saveData.parseBin!(read!int)("hp", 100);
 		//get "level", converted to int. If "level" is not found, default to `1`
-		hero.level = saveData.get("level", read!int, 1);
+		hero.level = saveData.parseBin!(read!int)("level", 1);
 		
 		//get item 0 from "pos", converted to double. If "pos" is not found, an ISLAMapKeyException will be thrown
-		hero.x = saveData["pos"][0].read!double();
-		hero.y = saveData["pos"][1].read!double();
+		hero.x = read!double(saveData["pos"][0]);
+		hero.y = read!double(saveData["pos"][1]);
 	}catch(ISLAException ex){
 		//handle any exceptions...
 		quit(error: ex.toString());
 	}
+}
+
+void saveSaveData(ref Hero hero){
+	import std.file: write;
+	import std.bitmanip: nToLE = nativeToLittleEndian;
+	write("savefile.isla", ISLABinValue(
+		"hp": ISLABinValue(nToLE(hero.health)),
+		"level": ISLABinValue(nToLE(hero.level)),
+		"pos": ISLABinValue([nToLE(hero.x), nToLE(hero.y)]),
+	).encode());
 }
 ```

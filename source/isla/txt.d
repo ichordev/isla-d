@@ -15,6 +15,7 @@ enum ISLAType{
 	str,
 	list,
 	map,
+	none,
 }
 
 enum headerVersion = "1";
@@ -25,6 +26,7 @@ string toString(ISLAType type) nothrow pure @safe{
 		case ISLAType.str:  return "str";
 		case ISLAType.list: return "list";
 		case ISLAType.map:  return "map";
+		case ISLAType.none: return "none";
 	}
 }
 
@@ -34,7 +36,7 @@ struct ISLAValue{
 		ISLAValue[] _list;
 		ISLAValue[string] _map;
 	}
-	private ISLAType _type = ISLAType.str;
+	private ISLAType _type = ISLAType.none;
 	@property type() inout nothrow @nogc pure @safe => _type;
 	
 	this(string str) nothrow @nogc pure @safe{
@@ -91,6 +93,9 @@ struct ISLAValue{
 	///Return a map if the `ISLAValue`'s `type` is `map`, otherwise `null`.
 	@property mapNothrow() inout nothrow @nogc pure @trusted => _type == ISLAType.map ? _map : null;
 	
+	///Returns `true` if the `ISLAValue`'s `type` is `none`.
+	@property none() inout nothrow @nogc pure @safe => _type == ISLAType.none;
+	
 	bool opEquals(scope inout string rhs) inout nothrow @nogc pure @trusted =>
 		_type == ISLAType.str  && _str  == rhs;
 	bool opEquals(scope inout ISLAValue[] rhs) inout nothrow @nogc pure @trusted =>
@@ -102,6 +107,7 @@ struct ISLAValue{
 			case ISLAType.str:  return _str  == rhs;
 			case ISLAType.list: return _list == rhs;
 			case ISLAType.map:  return _map  == rhs;
+			case ISLAType.none: return rhs._type == ISLAType.none;
 		}
 	}
 	
@@ -121,24 +127,49 @@ struct ISLAValue{
 	
 	inout(ISLAValue) get(scope size_t i, return scope inout(ISLAValue) fallback) inout nothrow @nogc pure @trusted =>
 		_type == ISLAType.list && i < _list.length ? _list[i] : fallback;
+	deprecated("Due to issues with overload ambiguity, only use `get` for getting ISLAValues directly. Please use `getStr` instead for getting type `str` instead")
 	string get(scope size_t i, return scope string fallback) inout nothrow @nogc pure @trusted =>
 		_type == ISLAType.list && i < _list.length && _list[i]._type == ISLAType.str  ? _list[i]._str  : fallback;
+	deprecated("Due to issues with overload ambiguity, only use `get` for getting ISLAValues directly. Please use `getList` instead for getting type `list` instead")
 	inout(ISLAValue)[] get(scope size_t i, return scope inout(ISLAValue)[] fallback) inout nothrow @nogc pure @trusted =>
 		_type == ISLAType.list && i < _list.length && _list[i]._type == ISLAType.list ? _list[i]._list : fallback;
+	deprecated("Due to issues with overload ambiguity, only use `get` for getting ISLAValues directly. Please use `getMap` instead for getting type `map` instead")
 	inout(ISLAValue[string]) get(scope size_t i, return scope inout(ISLAValue[string]) fallback) inout nothrow @nogc pure @trusted =>
 		_type == ISLAType.list && i < _list.length && _list[i]._type == ISLAType.map  ? _list[i]._map  : fallback;
+	string getStr(scope size_t i, return scope string fallback=null) inout nothrow @nogc pure @trusted =>
+		_type == ISLAType.list && i < _list.length && _list[i]._type == ISLAType.str  ? _list[i]._str  : fallback;
+	inout(ISLAValue)[] getList(scope size_t i, return scope inout(ISLAValue)[] fallback=null) inout nothrow @nogc pure @trusted =>
+		_type == ISLAType.list && i < _list.length && _list[i]._type == ISLAType.list ? _list[i]._list : fallback;
+	inout(ISLAValue[string]) getMap(scope size_t i, return scope inout(ISLAValue[string]) fallback=null) inout nothrow @nogc pure @trusted =>
+		_type == ISLAType.list && i < _list.length && _list[i]._type == ISLAType.map  ? _list[i]._map  : fallback;
+	unittest{
+		const val = ISLAValue([
+			ISLAValue("50"), ISLAValue("-72"), ISLAValue("4"), ISLAValue("509"),
+			ISLAValue(["1", "2"]),
+			ISLAValue(["one": "1"]),
+		]);
+		assert(val.get(0, ISLAValue("9")).str  == "50");
+		assert(val.get(6, ISLAValue("12")).str == "12");
+		assert(val.getStr(0, "9")  == "50");
+		assert(val.getStr(6, "12") == "12");
+		assert(val.getList(4, [ISLAValue("3")]) == [ISLAValue("1"), ISLAValue("2")]);
+		assert(val.getList(7, [ISLAValue("3")]) == [ISLAValue("3")]);
+		assert(val.getMap(5, ["two": ISLAValue("2")]) == cast(const)["one": ISLAValue("1")]);
+		assert(val.getMap(8, ["two": ISLAValue("2")]) == cast(const)["two": ISLAValue("2")]);
+	}
 	
-	T get(alias parse=(a) => a, T)(scope size_t i, return scope T fallback) inout{
+	deprecated("`get` with parser cannot support delegates. Please use `parse` instead")
+	T get(alias parser=(a) => a, T)(scope size_t i, return scope T fallback) inout{
 		if(_type == ISLAType.list && i < _list.length){
-			static if(is(typeof(parse(ISLAValue.init)): T)){
-				return parse(_list[i]);
-			}else static if(is(typeof(parse("")): T)){
-				if(_list[i]._type == ISLAType.str)  return parse(_list[i]._str);
-			}else static if(is(typeof(parse([ISLAValue.init])): T)){
-				if(_list[i]._type == ISLAType.list) return parse(_list[i]._list);
-			}else static if(is(typeof(parse(["": ISLAValue.init])): T)){
-				if(_list[i]._type == ISLAType.map)  return parse(_list[i]._map);
-			}else static assert(0, "`parse` does not return `"~T.stringof~"` when passed an `ISLAValue` or any of its sub-types");
+			static if(is(typeof(parser(ISLAValue.init)): T)){
+				return parser(_list[i]);
+			}else static if(is(typeof(parser("")): T)){
+				if(_list[i]._type == ISLAType.str)  return parser(_list[i]._str);
+			}else static if(is(typeof(parser([ISLAValue.init])): T)){
+				if(_list[i]._type == ISLAType.list) return parser(_list[i]._list);
+			}else static if(is(typeof(parser(["": ISLAValue.init])): T)){
+				if(_list[i]._type == ISLAType.map)  return parser(_list[i]._map);
+			}else static assert(0, "`parser` does not return `"~T.stringof~"` when passed an `ISLAValue` or any of its sub-types");
 		}
 		return fallback;
 	}
@@ -151,6 +182,7 @@ struct ISLAValue{
 		}
 		return fallback;
 	}
+	deprecated("Due to issues with overload ambiguity, only use `get` for getting ISLAValues directly. Please use `getStr` instead for getting type `str` instead")
 	string get(scope string key, return scope string fallback) inout nothrow @nogc pure @trusted{
 		if(_type == ISLAType.map){
 			if(auto ret = key in _map){
@@ -161,6 +193,7 @@ struct ISLAValue{
 		}
 		return fallback;
 	}
+	deprecated("Due to issues with overload ambiguity, only use `get` for getting ISLAValues directly. Please use `getList` instead for getting type `list` instead")
 	inout(ISLAValue)[] get(scope string key, return scope inout(ISLAValue)[] fallback) inout nothrow @nogc pure @trusted{
 		if(_type == ISLAType.map){
 			if(auto ret = key in _map){
@@ -171,6 +204,7 @@ struct ISLAValue{
 		}
 		return fallback;
 	}
+	deprecated("Due to issues with overload ambiguity, only use `get` for getting ISLAValues directly. Please use `getMap` instead for getting type `map` instead")
 	inout(ISLAValue[string]) get(scope string key, return scope inout(ISLAValue[string]) fallback) inout nothrow @nogc pure @trusted{
 		if(_type == ISLAType.map){
 			if(auto ret = key in _map){
@@ -181,41 +215,67 @@ struct ISLAValue{
 		}
 		return fallback;
 	}
-	
-	T get(alias parse=(a) => a, T)(scope string key, return scope T fallback) inout{
+	string getStr(scope string key, return scope string fallback=null) inout nothrow @nogc pure @trusted{
 		if(_type == ISLAType.map){
 			if(auto ret = key in _map){
-				static if(is(typeof(parse(ISLAValue.init)): T)){
-					return parse(*ret);
-				}else static if(is(typeof(parse("")): T)){
-					if(ret._type == ISLAType.str)  return parse(ret._str);
-				}else static if(is(typeof(parse([ISLAValue.init])): T)){
-					if(ret._type == ISLAType.list) return parse(ret._list);
-				}else static if(is(typeof(parse(["": ISLAValue.init])): T)){
-					if(ret._type == ISLAType.map)  return parse(ret._map);
-				}else static assert(0, "`parse` does not return `"~T.stringof~"` when passed an `ISLAValue` or any of its sub-types");
+				if(ret._type == ISLAType.str){
+					return ret._str;
+				}
 			}
 		}
 		return fallback;
 	}
-	
+	inout(ISLAValue)[] getList(scope string key, return scope inout(ISLAValue)[] fallback=null) inout nothrow @nogc pure @trusted{
+		if(_type == ISLAType.map){
+			if(auto ret = key in _map){
+				if(ret._type == ISLAType.list){
+					return ret._list;
+				}
+			}
+		}
+		return fallback;
+	}
+	inout(ISLAValue[string]) getMap(scope string key, return scope inout(ISLAValue[string]) fallback=null) inout nothrow @nogc pure @trusted{
+		if(_type == ISLAType.map){
+			if(auto ret = key in _map){
+				if(ret._type == ISLAType.map){
+					return ret._map;
+				}
+			}
+		}
+		return fallback;
+	}
 	unittest{
-		ISLAValue val;
-		val = ISLAValue(["50", "-72", "4", "509"]);
-		
-		assert(val.get(0, "9")  == "50");
-		assert(val.get(4, "12") == "12");
-		
-		assert(val.get!(to!int)(0,  9)   == 50);
-		assert(val.get!(to!int)(4, 12)   == 12);
-		
-		val = ISLAValue(["two": "2", "four": "4", "six": "6"]);
-		
-		assert(val.get("two",   "7") == "2");
-		assert(val.get("eight", "8") == "8");
-		
-		assert(val.get!(to!int)("two",   7) == 2);
-		assert(val.get!(to!int)("eight", 8) == 8);
+		const val = ISLAValue([
+			"two": ISLAValue("2"), "four": ISLAValue("4"), "six": ISLAValue("6"),
+			"123": ISLAValue(["1", "2", "3"]), "twotwo": ISLAValue(["two": "2"]),
+		]);
+		assert(val.get("two",   ISLAValue("7")).str == "2");
+		assert(val.get("eight", ISLAValue("8")).str == "8");
+		assert(val.getStr("two",   "7") == "2");
+		assert(val.getStr("eight", "8") == "8");
+		assert(val.getList("123", [ISLAValue("4")]) == ["1", "2", "3"]);
+		assert(val.getList("321", [ISLAValue("3"), ISLAValue("2"), ISLAValue("1")]) == ["3", "2", "1"]);
+		assert(val.getMap("twotwo", ["four": ISLAValue("4")]) == cast(const)["two": ISLAValue("2")]);
+		assert(val.getMap("fourfour", ["four": ISLAValue("4")]) == cast(const)["four": ISLAValue("4")]);
+	}
+	
+	deprecated("`get` with parser cannot support delegates. Please use `parse` instead")
+	T get(alias parser=(a) => a, T)(scope string key, return scope T fallback) inout{
+		if(_type == ISLAType.map){
+			if(auto ret = key in _map){
+				static if(is(typeof(parser(ISLAValue.init)): T)){
+					return parser(*ret);
+				}else static if(is(typeof(parser("")): T)){
+					if(ret._type == ISLAType.str)  return parser(ret._str);
+				}else static if(is(typeof(parser([ISLAValue.init])): T)){
+					if(ret._type == ISLAType.list) return parser(ret._list);
+				}else static if(is(typeof(parser(["": ISLAValue.init])): T)){
+					if(ret._type == ISLAType.map)  return parser(ret._map);
+				}else static assert(0, "`parser` does not return `"~T.stringof~"` when passed an `ISLAValue` or any of its sub-types");
+			}
+		}
+		return fallback;
 	}
 	
 	inout(ISLAValue) opIndexAssign(inout ISLAValue val, size_t i){
@@ -272,9 +332,10 @@ struct ISLAValue{
 					ret ~= keys[$-1] ~ ": " ~ _map[keys[$-1]].toString();
 				}
 				return ret ~ "]";
+			case ISLAType.none:
+				return "none";
 		}
 	}
-	
 	unittest{
 		assert(ISLAValue([
 			ISLAValue("a"), ISLAValue("b"), ISLAValue("c"),
@@ -293,6 +354,8 @@ struct ISLAValue{
 					break;
 				case ISLAType.map:
 					encodeMap(lines, level+1);
+					break;
+				case ISLAType.none:
 					break;
 			}
 		}
@@ -383,6 +446,8 @@ struct ISLAValue{
 			case ISLAType.map:
 				encodeMap(lines, 0);
 				break;
+			case ISLAType.none:
+				throw new ISLAException("Can only encode list or map, not none");
 		}
 		
 		string ret = header;
@@ -397,6 +462,7 @@ struct ISLAValue{
 		string val;
 		val = ISLAValue([
 			"health": ISLAValue("100"),
+			"empty": ISLAValue(cast(string[])[]),
 			"items": ISLAValue([
 				ISLAValue("apple"),
 				ISLAValue("apple"),
@@ -436,6 +502,9 @@ struct ISLAValue{
 		assert(val.startsWith(isla.txt.header ~ '\n'));
 		assert(val.canFind(q"isla
 health=100
+isla"));
+		assert(val.canFind(q"isla
+empty:
 isla"));
 		assert(val.canFind(q"isla
 items:
@@ -495,6 +564,79 @@ isla"));
 	}
 }
 
+T parse(alias parser=(a) => a, T)(const ISLAValue val, scope size_t i, return scope T fallback) =>
+	val._type == ISLAType.list && i < val._list.length ? parser(val._list[i]) : fallback;
+T parseStr(alias parser=(a) => a, T)(const ISLAValue val, scope size_t i, return scope T fallback) =>
+	val._type == ISLAType.list && i < val._list.length && val._list[i]._type == ISLAType.str  ? parser(val._list[i]._str)  : fallback;
+T parseList(alias parser=(a) => a, T)(const ISLAValue val, scope size_t i, return scope T fallback) =>
+	val._type == ISLAType.list && i < val._list.length && val._list[i]._type == ISLAType.list ? parser(val._list[i]._list) : fallback;
+T parseMap(alias parser=(a) => a, T)(const ISLAValue val, scope size_t i, return scope T fallback) =>
+	val._type == ISLAType.list && i < val._list.length && val._list[i]._type == ISLAType.map  ? parser(val._list[i]._map)  : fallback;
+unittest{
+	const val = ISLAValue([
+		ISLAValue("50"), ISLAValue("-72"), ISLAValue("4"), ISLAValue("509"),
+		ISLAValue(["1", "2"]),
+		ISLAValue(["one": "1"]),
+	]);
+	assert(val.parse!(v => v.str.to!int)(0,  9) == 50);
+	assert(val.parse!(v => v.str.to!int)(6, 12) == 12);
+	assert(val.parseStr!(to!int)(0,  9) == 50);
+	assert(val.parseStr!(to!int)(7, 12) == 12);
+	import std.algorithm.iteration, std.array, std.typecons;
+	assert(val.parseList!(l => l.map!(i => i.str.to!int()).array)(4, [3]) == [1, 2]);
+	assert(val.parseList!(l => l.map!(i => i.str.to!int()).array)(8, [3]) == [3]);
+	assert(val.parseMap!(m => m.byPair.map!(kv => tuple(kv[0], kv[1].str.to!int())).assocArray)(5, ["two": 2]) == ["one": 1]);
+	assert(val.parseMap!(m => m.byPair.map!(kv => tuple(kv[0], kv[1].str.to!int())).assocArray)(9, ["two": 2]) == ["two": 2]);
+}
+
+T parse(alias parser=(a) => a, T)(const ISLAValue val, scope string key, return scope T fallback){
+	if(val._type == ISLAType.map){
+		if(auto ret = key in val._map){
+			return parser(*ret);
+		}
+	}
+	return fallback;
+}
+T parseStr(alias parser=(a) => a, T)(const ISLAValue val, scope string key, return scope T fallback){
+	if(val._type == ISLAType.map){
+		if(auto ret = key in val._map){
+			if(ret._type == ISLAType.str)  return parser(ret._str);
+		}
+	}
+	return fallback;
+}
+T parseList(alias parser=(a) => a, T)(const ISLAValue val, scope string key, return scope T fallback){
+	if(val._type == ISLAType.map){
+		if(auto ret = key in val._map){
+			if(ret._type == ISLAType.list) return parser(ret._list);
+		}
+	}
+	return fallback;
+}
+T parseMap(alias parser=(a) => a, T)(const ISLAValue val, scope string key, return scope T fallback){
+	if(val._type == ISLAType.map){
+		if(auto ret = key in val._map){
+			if(ret._type == ISLAType.map)  return parser(ret._map);
+		}
+	}
+	return fallback;
+}
+unittest{
+	const val = ISLAValue([
+		"two": ISLAValue("2"), "four": ISLAValue("4"), "six": ISLAValue("6"),
+		"123": ISLAValue(["1", "2", "3"]), "twotwo": ISLAValue(["two": "2"]),
+	]);
+	assert(val.parse!(v => v.str.to!int())("two",   7) == 2);
+	assert(val.parse!(v => v.str.to!int())("eight", 8) == 8);
+	assert(val.parseStr!(to!int)("two",   7) == 2);
+	assert(val.parseStr!(to!int)("eight", 8) == 8);
+	import std.algorithm.iteration, std.array, std.typecons;
+	assert(val.parseList!(l => l.map!(i => i.str.to!int()).array)("123", [4]) == [1, 2, 3]);
+	assert(val.parseList!(l => l.map!(i => i.str.to!int()).array)("321", [3, 2, 1]) == [3, 2, 1]);
+	assert(val.parseMap!(m => m.byPair.map!(kv => tuple(kv[0], kv[1].str.to!int())).assocArray)("twotwo", ["four": 4]) == ["two": 2]);
+	assert(val.parseMap!(m => m.byPair.map!(kv => tuple(kv[0], kv[1].str.to!int())).assocArray)("fourfour", ["four": 4]) == ["four": 4]);
+}
+
 private struct DecodeImpl(R){
 	R lines;
 	size_t lineNum = 1;
@@ -529,10 +671,11 @@ private struct DecodeImpl(R){
 	ISLAValue decodeScope(size_t level, ref size_t newLevel){
 		while(!lines.empty){
 			lines.popFront(); lineNum++;
+			if(lines.empty) return ISLAValue(); //return 'none'
 			auto line = lines.front;
 			
 			if(!startLine(line, level, newLevel)){
-				if(newLevel < level) throw new ISLAException("Scope immediately ended on line "~lineNum.to!string()); //TODO: maybe return null??????
+				if(newLevel < level) return ISLAValue(); //return 'none'
 				else continue;
 			}
 			
@@ -664,7 +807,7 @@ isla").lineSplitter());
 e\=mc^2=Mass–energy equivalence
 ¯\_(ツ)_/¯=a shrug
 \:)=a smiley
-isla").splitLines());
+isla").lineSplitter());
 	assert("-3" in val);
 	assert("e=mc^2" in val);
 	assert(`¯\_(ツ)_/¯` in val);
@@ -678,7 +821,7 @@ He engraved on it the words:
 "And this, too, shall pass away.
 \"
 "
-isla").splitLines());
+isla").lineSplitter());
 	assert(val["Quote"] == "He engraved on it the words:\n\"And this, too, shall pass away.\n\"");
 	
 	val = isla.txt.decode((isla.txt.header ~ '\n' ~ q"isla
@@ -690,10 +833,11 @@ isla").splitLines());
 	;This is a comment!
 	
 ;Another comment :)
-isla").splitLines());
+isla").lineSplitter());
 	
 	val = isla.txt.decode((isla.txt.header ~ '\n' ~ q"isla
 health=100
+empty:
 items:
 	-apple
 	-apple
@@ -734,6 +878,7 @@ grid:
 isla").lineSplitter());
 	assert(val["health"] == ISLAValue("100"));
 	assert(val["health"] == "100");
+	assert(val["empty"].none);
 	assert(val["items"][1] == "apple");
 	assert(val["translations"]["en-UK"]["item.apple.name"] == "Apple");
 	assert(val["translations"]["en-UK"]["item.key.description"] == "A rusty old-school golden key.\nYou don't know what door it unlocks.");
