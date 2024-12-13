@@ -8,7 +8,7 @@ module isla.txt;
 
 import isla.common;
 
-import std.range.primitives, std.conv, std.string, std.uni;
+import std.algorithm.comparison, std.range.primitives, std.conv, std.string, std.uni;
 
 ///Indicates which type is stored in an ISLAValue
 enum ISLAType{
@@ -642,29 +642,35 @@ private struct DecodeImpl(R){
 	size_t lineNum = 1;
 	
 	pure @safe:
+	/*
+	Returns `true` if the line should be parsed by the caller.
+	If it returns `false` and `newLevel` is less than `level`, the caller should end its scope.
+	*/
 	bool startLine(ref string line, size_t level, out size_t newLevel){
-		if(line.length == 0){
-			newLevel = level;
-			return false;
-		 }
-		 
-		foreach(ch; line[0..($ < level ? $ : level)]){
-			if(ch == '\t'){
-				newLevel++;
-			}else if(ch == ';'){
-				newLevel = level;
-				return false;
-			}else break;
+		bool isOnlyWhitespace = true;
+		findNewLevel: foreach(ch; line[0..min($, level)]){
+			switch(ch){
+				case '\t':
+					newLevel++;
+					break;
+				default:
+					isOnlyWhitespace = false;
+					break findNewLevel;
+				case ';':
+					newLevel = level;
+					return false;
+			}
 		}
-		if(level > line.length){
-			newLevel = level;
+		if(level >= line.length){
+			if(isOnlyWhitespace) newLevel = level;
 			return false;
 		}
+		
 		line = line[level..$];
-		if(line.length == 0) return false;
-		if(line[0] == ';') return false;
-		if(newLevel < level) return false;
-		else if(line[0] == '\t') throw new ISLAException("Nesting level too high for scope with level "~level.to!string()~" on line "~lineNum.to!string());
+		if(newLevel < level || line[0] == ';')
+			return false;
+		if(isOnlyWhitespace && line[0] == '\t')
+			throw new ISLAException("Nesting level too high for scope with level "~level.to!string()~" on line "~lineNum.to!string());
 		return true;
 	}
 	
@@ -717,34 +723,40 @@ private struct DecodeImpl(R){
 		ISLAValue[string] ret;
 		decodeLines: while(!lines.empty){
 			auto line = lines.front;
-			if(!startLine(line, level, newLevel)){
-				if(newLevel < level) break;
-			}else{
+			if(startLine(line, level, newLevel)){
 				string key;
 				bool escape = false;
-				foreach(i, ch; line){
+				decodeChars: foreach(i, ch; line){
 					if(escape){
-						if(ch == '=' || ch == ':' || ch == '-'){ //check for valid escapes
-							key ~= ch;
-						}else{
-							key ~= `\`~ch; //otherwise, re-insert the reverse solidus that was skipped
+						switch(ch){
+							case '=', ':', '-': //check for valid escapes
+								key ~= ch;
+								break;
+							default: //otherwise, re-insert the reverse solidus that was skipped
+								key ~= `\`~ch;
 						}
 						escape = false;
-					}else if(ch == '\\'){
-						escape = true; //mark the next char to be checked, and skip adding the reverse solidus to the key for now
-					}else if(ch == '='){
-						auto val = line[i+1..$];
-						ret[key] = val == `"` ? decodeMultiLineValue() : ISLAValue(val);
-						break;
-					}else if(ch == ':'){
-						if(line.length-1 > i) throw new ISLAException("Unexpected data after colon after key on line "~lineNum.to!string()~": "~line[i..$]);
-						ret[key] = decodeScope(level+1, newLevel);
-						if(newLevel < level) return ret;
-						continue decodeLines;
-					}else{
-						key ~= ch;
+					}else switch(ch){
+						default:
+							key ~= ch;
+							break;
+						case '=':
+							auto val = line[i+1..$];
+							ret[key] = val == `"` ? decodeMultiLineValue() : ISLAValue(val);
+							break decodeChars;
+						case ':':
+							if(line.length-1 > i) throw new ISLAException("Unexpected data after colon after key on line "~lineNum.to!string()~": "~line[i..$]);
+							ret[key] = decodeScope(level+1, newLevel);
+							if(newLevel >= level)
+								continue decodeLines;
+							else
+								return ret;
+						case '\\':
+							escape = true; //mark the next char to be checked, and skip adding the reverse solidus to the key for now
 					}
 				}
+			}else if(newLevel < level){
+				break decodeLines;
 			}
 			lines.popFront(); lineNum++;
 		}
@@ -757,10 +769,11 @@ private struct DecodeImpl(R){
 		while(!lines.empty){
 			lines.popFront(); lineNum++;
 			auto line = lines.front;
-			if(line == `"`) return ISLAValue(str);
-			if(line == `\"`){
+			if(line == `"`)
+				return ISLAValue(str);
+			if(line == `\"`)
 				line = line[1..$]; //consume the backslash
-			}
+			
 			if(firstLine){
 				str ~= line;
 				firstLine = false;
@@ -768,7 +781,7 @@ private struct DecodeImpl(R){
 				str ~= '\n' ~ line;
 			}
 		}
-		throw new ISLAException("Multi-line value is never closed before EOF");
+		throw new ISLAException("Multi-line value not closed before EOF");
 	}
 	
 	ISLAValue decode(){
@@ -808,10 +821,10 @@ e\=mc^2=Mass–energy equivalence
 ¯\_(ツ)_/¯=a shrug
 \:)=a smiley
 isla").lineSplitter());
-	assert("-3" in val);
-	assert("e=mc^2" in val);
-	assert(`¯\_(ツ)_/¯` in val);
-	assert(":)" in val);
+	assert(val["-3"] == "Minus three");
+	assert(val["e=mc^2"] == "Mass–energy equivalence");
+	assert(val[`¯\_(ツ)_/¯`] == "a shrug");
+	assert(val[":)"] == "a smiley");
 	assert(":(" !in val);
 	assert(null !in val);
 	
@@ -834,6 +847,7 @@ isla").lineSplitter());
 	
 ;Another comment :)
 isla").lineSplitter());
+	assert(val[0][0][0] == "value");
 	
 	val = isla.txt.decode((isla.txt.header ~ '\n' ~ q"isla
 health=100
@@ -847,6 +861,7 @@ translations:
 		;United Kingdom English
 	
 		item.apple.name=Apple
+		
 		item.apple.description="
 A shiny, ripe, red apple that
 fell from a nearby tree.
@@ -886,4 +901,78 @@ isla").lineSplitter());
 	assert(val["-5 - 3"] == "negative five minus three");
 	assert(val["="] == "equals");
 	assert(val[":)"] == "smiley");
+	
+	val = isla.txt.decode((isla.txt.header ~ '\n' ~ q"isla
+kfs:
+	4:
+		-:
+			time=0
+			rot:
+				val=0X1.921FB6P-1;0X0P+0;0X0P+0
+				ease=none
+		-:
+			time=7
+			rot:
+				val=0X0P+0;0X1.921FB6P-1;0X0P+0
+				ease=outQuad
+		-:
+			time=21
+			rot:
+				val=0X0P+0;0X0P+0;0X0P+0
+				ease=inQuad
+	5:
+		-:
+			time=0
+			rot:
+				val=0X0P+0;0X0P+0;0X1.921FB6P-1
+				ease=inOutQuad
+		-:
+			time=5
+			rot:
+				val=0X0P+0;0X1.921FB6P-1;0X1.921FB6P-1
+				ease=inSin
+isla").lineSplitter());
+	assert(val == ISLAValue([
+		"kfs": ISLAValue([
+			"4": ISLAValue([
+				ISLAValue([
+					"time": ISLAValue("0"),
+					"rot": ISLAValue([
+						"val": ISLAValue("0X1.921FB6P-1;0X0P+0;0X0P+0"),
+						"ease": ISLAValue("none"),
+					]),
+				]),
+				ISLAValue([
+					"time": ISLAValue("7"),
+					"rot": ISLAValue([
+						"val": ISLAValue("0X0P+0;0X1.921FB6P-1;0X0P+0"),
+						"ease": ISLAValue("outQuad"),
+					]),
+				]),
+				ISLAValue([
+					"time": ISLAValue("21"),
+					"rot": ISLAValue([
+						"val": ISLAValue("0X0P+0;0X0P+0;0X0P+0"),
+						"ease": ISLAValue("inQuad"),
+					]),
+				]),
+			]),
+			"5": ISLAValue([
+				ISLAValue([
+					"time": ISLAValue("0"),
+					"rot": ISLAValue([
+						"val": ISLAValue("0X0P+0;0X0P+0;0X1.921FB6P-1"),
+						"ease": ISLAValue("inOutQuad"),
+					]),
+				]),
+				ISLAValue([
+					"time": ISLAValue("5"),
+					"rot": ISLAValue([
+						"val": ISLAValue("0X0P+0;0X1.921FB6P-1;0X1.921FB6P-1"),
+						"ease": ISLAValue("inSin"),
+					]),
+				]),
+			]),
+		]),
+	]));
 }
